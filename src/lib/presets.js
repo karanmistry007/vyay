@@ -1,0 +1,52 @@
+/** Optional starter master data. Nothing is created unless the user taps "Add starter set". */
+export const STARTER_EXPENSE_CATEGORIES = [
+  ["Groceries", "ShoppingCart", "#2E9E6B", "Food"],
+  ["Restaurants", "Utensils", "#E0602C", "Food"],
+  ["Food delivery", "Receipt", "#CE3D57", "Food"],
+  ["Cafe", "Coffee", "#8B5E34", "Food"],
+  ["Fuel", "Fuel", "#4A5BE8", "Transport"],
+  ["Cab & auto", "Car", "#2F7FE0", "Transport"],
+  ["Public transport", "Bus", "#3A8FA8", "Transport"],
+  ["Rent", "Home", "#6B4FD8", "Bills"],
+  ["Electricity", "Zap", "#D9A21B", "Bills"],
+  ["Internet", "Wifi", "#2F7FE0", "Bills"],
+  ["Mobile", "Smartphone", "#6B4FD8", "Bills"],
+  ["Clothing", "Shirt", "#C8459B", "Shopping"],
+  ["Electronics", "Laptop", "#3C4A66", "Shopping"],
+  ["Household", "ShoppingBag", "#0E8A63", "Shopping"],
+  ["Pharmacy", "Pill", "#CE3D57", "Health"],
+  ["Doctor", "Stethoscope", "#C8459B", "Health"],
+  ["Fitness", "Dumbbell", "#1FA0C8", "Health"],
+  ["Subscriptions", "Tv", "#E0602C", "Fun"],
+  ["Entertainment", "Film", "#8A3FD1", "Fun"],
+  ["Travel", "Plane", "#1FA0C8", "Travel"],
+  ["Education", "BookOpen", "#4A5BE8", "Growth"],
+  ["Personal care", "Scissors", "#8B5E34", "Personal"],
+  ["Gifts & donations", "Gift", "#CE3D57", "Personal"],
+  ["Investments", "PiggyBank", "#0E8A63", "Savings"],
+  ["Miscellaneous", "Tag", "#3C4A66", "Other"],
+  ["Settlement", "HandCoins", "#E8863C", "Settlements"],
+];
+
+export const STARTER_INCOME_CATEGORIES = [
+  ["Salary", "Briefcase", "#0E8A63"],
+  ["Business", "Building2", "#C87A15"],
+  ["Freelance", "Sparkles", "#C87A15"],
+  ["Interest", "TrendingUp", "#2F7FE0"],
+  ["Dividends", "PiggyBank", "#0E8A63"],
+  ["Rental income", "Home", "#6B4FD8"],
+  ["Cashback", "Banknote", "#6B4FD8"],
+  ["Refund", "Receipt", "#3A8FA8"],
+  ["Gift received", "Gift", "#C8459B"],
+  ["Settlement", "Handshake", "#4FBF7B"],
+];
+
+export const STARTER_METHODS = [
+  ["UPI", "Smartphone"],
+  ["Cash", "Banknote"],
+  ["Credit card", "CreditCard"],
+  ["Debit card", "CreditCard"],
+  ["Net banking", "Landmark"],
+  ["Auto-debit", "Repeat"],
+  ["Cheque", "Receipt"],
+];
