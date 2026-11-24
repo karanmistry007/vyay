@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { ArrowRight, Check, Shield } from "lucide-react";
+import { ArrowRight, Check, Shield, Sparkles } from "lucide-react";
 import { useToast, Seg, IconPicker, ColorPicker, Select } from "../components/ui.jsx";
 import { CURRENCIES, buzz } from "../lib/money.js";
 import { STARTER_EXPENSE_CATEGORIES, STARTER_INCOME_CATEGORIES, STARTER_METHODS } from "../lib/presets.js";
@@ -10,9 +10,32 @@ export default function Onboarding({ s }) {
   const toast = useToast();
   const [step, setStep] = useState(0);
   const [busy, setBusy] = useState(false);
+  const [seeding, setSeeding] = useState(false);
   const [book, setBook] = useState({ name: "Personal", type: "Personal", currency: "INR", icon: "Wallet", color: "#C87A15" });
   const [acc, setAcc] = useState({ name: "", type: "Bank", opening: "" });
   const [starter, setStarter] = useState(true);
+
+  /*
+   * Dev-only shortcut so re-testing onboarding never means re-typing a book's
+   * worth of accounts and transactions by hand. `import.meta.env.DEV` is a
+   * build-time constant: Vite inlines it to `false` for production, so this
+   * whole branch — including the dynamic import of the generator — is dead
+   * code a production build strips out rather than code that merely never runs.
+   */
+  const loadSampleData = async () => {
+    if (!import.meta.env.DEV) return;
+    setSeeding(true);
+    try {
+      const { buildSampleData } = await import("../lib/sampleData.js");
+      await persistStorage();
+      await s.replaceAll(buildSampleData());
+      buzz(18);
+      toast("Loaded ~6 months of sample data");
+    } catch (e) {
+      toast("Could not load sample data: " + (e.message || e));
+      setSeeding(false);
+    }
+  };
 
   const finish = async () => {
     setBusy(true);
@@ -168,6 +191,11 @@ export default function Onboarding({ s }) {
         <button className="vy-btn accent" disabled={busy} onClick={next}>
           {cur.cta}{step < steps.length - 1 && <ArrowRight size={17} />}
         </button>
+        {import.meta.env.DEV && (
+          <button className="vy-btn soft" style={{ marginTop: 10 }} disabled={seeding || busy} onClick={loadSampleData}>
+            <Sparkles size={16} />{seeding ? "Loading sample data…" : "Dev: skip to sample data"}
+          </button>
+        )}
       </div>
     </div>
   );
