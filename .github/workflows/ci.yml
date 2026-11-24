@@ -142,6 +142,11 @@ jobs:
     if: github.event_name == 'pull_request'
     runs-on: ubuntu-latest
     steps:
+      # The attribution check reads commit messages, so it needs the history, not just a tree.
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
       # CLAUDE.md: main is the release line and only ever receives develop. A pull request
       # from a topic branch straight into main skips integration entirely.
       - name: Base branch
@@ -172,3 +177,33 @@ jobs:
             echo "Branch '$HEAD' is not <owner>/<kebab-topic>, e.g. karan/dev-mode-sample-data."
             exit 1
           fi
+
+      # CLAUDE.md: no tooling attribution anywhere in the history. Catching it here is the
+      # difference between deleting a line before review and amending a pushed commit,
+      # which is what happened the one time this was not checked.
+      - name: No tooling attribution
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          bad=0
+          for sha in $(git rev-list "$BASE_SHA..$HEAD_SHA"); do
+            subject=$(git log -1 --format='%h %s' "$sha")
+            # The trailer is the real target; the loose grep catches a hand-written variant
+            # that git does not parse as a trailer. "CLAUDE.md" is a filename, so the pattern
+            # requires the attribution context around the name rather than the name alone.
+            if git log -1 --format='%(trailers:key=Co-Authored-By,valueonly)' "$sha" \
+                 | grep -qiE 'claude|anthropic|copilot|noreply@'; then
+              echo "::error::$subject carries a tooling Co-Authored-By trailer."
+              bad=1
+            fi
+            if git log -1 --format='%B' "$sha" | grep -qiE 'generated with .*(claude|copilot)'; then
+              echo "::error::$subject carries a \"generated with\" line."
+              bad=1
+            fi
+          done
+          if [ "$bad" -ne 0 ]; then
+            echo "End the message at the last prose paragraph, then amend and force-push the branch."
+            exit 1
+          fi
+          echo "No tooling attribution in this branch's commits."
