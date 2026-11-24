@@ -35,7 +35,7 @@ jobs:
       # Needed to create the draft release and attach the build to it.
       contents: write
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           ref: ${{ inputs.tag || github.ref }}
           # Release notes are written from the commits since the previous tag.
