@@ -5,7 +5,7 @@
  *     that screen renders, possibly days later. `check-imports.mjs` finds it in about
  *     a tenth of a second, so running it after every source edit is free.
  *  2. A pure-maths module edited without running its test is how report arithmetic
- *     drifts. Known-failing assertions are listed in BASELINE below and ignored, so
+ *     drifts. Known-failing assertions are listed in scripts/baseline.mjs and ignored, so
  *     only a *new* failure interrupts.
  *  3. `public/sw.js` losing its build-time placeholders makes the build silently wrong.
  *
@@ -16,18 +16,16 @@ import { execFileSync } from "node:child_process";
 import { readFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import { isKnownFailure } from "../../scripts/baseline.mjs";
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..", "..");
 
-/**
- * Assertions that already fail on a clean checkout. Each needs a reason and, ideally,
- * a shorter life than this comment. Remove an entry the moment it is fixed.
- *
- *  - "a short history charts month by month": buildRange("all", ...) ends at the real
- *    today rather than the anchor it is given, so the expected bucket count drifts by
- *    one every month. A defect in the test's assumption, not in the app.
+/*
+ * The list of assertions that already fail on a clean checkout lives in
+ * scripts/baseline.mjs, because CI reads it too. If this hook and the CI verifier
+ * disagreed about what counts as a known failure, an edit would pass locally and fail in
+ * the pull request, or worse, the other way round.
  */
-const BASELINE = ["a short history charts month by month"];
 
 /** Modules whose correctness lives in a test rather than in the type system. */
 const PAIRED = {
@@ -75,7 +73,7 @@ for (const [module, script] of Object.entries(PAIRED)) {
   if (ok) continue;
   const failures = out.split("\n")
     .filter((line) => line.includes("FAIL"))
-    .filter((line) => !BASELINE.some((known) => line.includes(known)));
+    .filter((line) => !isKnownFailure(script, line));
   if (failures.length) {
     problems.push(`${script} has new failures after editing ${module}:\n${failures.join("\n")}`);
   }
