@@ -15,12 +15,21 @@ IndexedDB. Read `README.md` for the product behaviour; this file is how to work 
 | Money formatting | `node test-format.mjs` | `fmt`, `round2`, `tint` |
 | Report maths | `node test-analytics.mjs` | pure functions in `src/lib/analytics.js` |
 | Settlement repair | `node test-planner.mjs` | `planRepair` correctness and idempotency |
+| The whole safety net | `npm run verify` | the four scripts above, judged against the known baseline |
+| …and the build with it | `npm run verify:build` | adds `npm run build` and checks the worker was rewritten |
+| Invariants | `npm run check:invariants` | the rules below that a machine can check; needs no `npm install` |
+| Bundle budget | `npm run check:size` | gzipped code payload against its ceiling; needs a build first |
 
 There is no test runner, no linter and no typechecker. The four scripts above are the whole
 safety net, so they are not optional either. Each exits non-zero on failure.
 
-**Before reporting any code change as done, run all four.** Quote the pass/fail counts.
-The `/verify` command does this in one step.
+**Before reporting any code change as done, run `npm run verify`.** Quote the pass/fail counts.
+The `/verify` command does this in one step. `npm run ci` runs what the pipeline runs.
+
+`npm run verify` is the only honest way to read those scripts, because `test-analytics.mjs`
+exits non-zero on a clean checkout. It separates a new failure from the one that was already
+there and exits non-zero only for the former — so a green run means something, and a red one
+is yours. The allowance lives in `scripts/baseline.mjs`, which the hook and CI both read.
 
 ## Git workflow
 
@@ -166,9 +175,38 @@ figure the way the rest of the app is wired. `/release` cuts a version.
 **Hook** (`.claude/hooks/post-edit-check.mjs`, wired in `.claude/settings.json`): after every
 edit it runs `check-imports.mjs` on source changes, runs the paired test for a pure-maths
 module, and refuses an edit that strips the service-worker placeholders. It ignores the one
-known-failing assertion, listed as `BASELINE` in the hook — delete that entry when the test is
-fixed. Personal permission overrides belong in `.claude/settings.local.json`, which is ignored
-by git.
+known-failing assertion, listed in `scripts/baseline.mjs` — delete that entry when the test is
+fixed, and both the hook and CI stop allowing it in the same commit. Personal permission
+overrides belong in `.claude/settings.local.json`, which is ignored by git.
+
+## Continuous integration
+
+`.github/workflows/ci.yml` runs on every pull request into `develop` or `main`. It runs the
+same two commands a contributor runs — `npm run verify` and `npm run check:invariants` — rather
+than a second, divergent definition of passing. Five jobs:
+
+| Job | What it decides |
+|---|---|
+| `safety-net` | the four scripts, on Node 20, 22 and 24 |
+| `invariants` | `scripts/check-invariants.mjs`; install-free, so a broken lockfile still gets feedback |
+| `build` | builds, proves the worker was rewritten, re-runs the invariants against `dist/`, checks the bundle budget, uploads the build |
+| `dependencies` | `npm audit --omit=dev` blocks; the dev-tool advisories only report |
+| `conventions` | the branch is `<owner>/<kebab-topic>` and a PR into `main` comes only from `develop` |
+
+The dev-tool advisories are deliberately non-blocking: the open Vite and esbuild findings
+affect the dev server and the build host, not the static files a user installs, and clearing
+them needs a major Vite upgrade. What ships has no advisories, and that gate does block.
+
+`release.yml` runs on a `v*` tag. It refuses to publish unless the tag, `package.json` and
+`APP_VERSION` all agree, then builds, packages `dist/` with a checksum and opens a **draft**
+release — because installing the PWA, reloading with the network off and restoring a backup
+from the previous build are still human steps. `codeql.yml` scans for the injection-shaped
+bugs that arithmetic tests cannot see; it needs code scanning enabled on the repository.
+
+Two things CI cannot do: judge whether an amount passed `round2()` on its way into the
+database, or whether a ledger row's `account` and `ex` flags mean what the change intended.
+Those need the specialist agents reading an actual diff, which is why the pull request
+template asks for them by name.
 
 ## Platform note
 

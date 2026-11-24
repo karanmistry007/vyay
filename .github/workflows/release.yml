@@ -1,0 +1,126 @@
+# Cut a release from a tag.
+#
+# This app has no error reporting and no backend: a bad build is discovered by a user whose
+# balances look wrong. So the tag is not trusted on its own — the version in the tag, in
+# package.json and in src/lib/version.js must agree before anything is published, because the
+# More screen quotes that version and every bug report cites it.
+#
+# The release is created as a DRAFT. A human still has to install the artifact, reload it
+# with the network off, and restore a backup taken with the previous build; none of that can
+# be checked here. See .claude/commands/release.md for the full procedure.
+name: Release
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Existing tag to build, e.g. v0.9.0"
+        required: true
+        type: string
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  release:
+    name: Verify, build and draft
+    runs-on: ubuntu-latest
+    permissions:
+      # Needed to create the draft release and attach the build to it.
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.tag || github.ref }}
+          # Release notes are written from the commits since the previous tag.
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+
+      - name: Install
+        run: npm ci
+
+      # Three places record the version. A mismatch means shipping a build that reports a
+      # version which was never released, and bug reports that cannot be placed.
+      - name: Version agrees everywhere
+        env:
+          RAW_TAG: ${{ inputs.tag || github.ref_name }}
+        run: |
+          TAG="${RAW_TAG#v}"
+          PKG=$(node -p "require('./package.json').version")
+          APP=$(node -p "require('fs').readFileSync('src/lib/version.js','utf8').match(/APP_VERSION\s*=\s*[\"']([^\"']+)[\"']/)[1]")
+          echo "tag=$TAG package.json=$PKG APP_VERSION=$APP"
+          if [ "$TAG" != "$PKG" ] || [ "$TAG" != "$APP" ]; then
+            echo "These must all match. Bump package.json and src/lib/version.js, then re-tag."
+            exit 1
+          fi
+
+      - name: Safety net and build
+        run: npm run verify:build
+
+      - name: Bundle budget
+        run: npm run check:size
+
+      # A release artifact nobody can verify is a liability. The checksum lets anyone confirm
+      # the zip they downloaded is the one this run produced.
+      - name: Package
+        env:
+          RAW_TAG: ${{ inputs.tag || github.ref_name }}
+        run: |
+          TAG="${RAW_TAG#v}"
+          cd dist && zip -qr "../vyay-${TAG}.zip" . && cd ..
+          sha256sum "vyay-${TAG}.zip" > "vyay-${TAG}.zip.sha256"
+          cat "vyay-${TAG}.zip.sha256"
+
+      - name: Release notes
+        env:
+          RAW_TAG: ${{ inputs.tag || github.ref_name }}
+        run: |
+          TAG="$RAW_TAG"
+          PREVIOUS=$(git describe --tags --abbrev=0 "${TAG}^" 2>/dev/null || true)
+          {
+            echo "## What shipped"
+            echo
+            if [ -n "$PREVIOUS" ]; then
+              git log --no-merges --pretty='- %s' "${PREVIOUS}..${TAG}"
+              echo
+              echo "Full history: \`${PREVIOUS}..${TAG}\`"
+            else
+              git log --no-merges --pretty='- %s'
+            fi
+            echo
+            echo "## Verified automatically"
+            echo
+            echo "- Safety net passed with only the known analytics baseline failure"
+            echo "- Invariants hold: no network, store boundary, worker placeholders, version in sync"
+            echo "- Offline shell precaches the whole build; manifest icons all present"
+            echo "- Bundle inside budget"
+            echo
+            echo "## Still needs a human"
+            echo
+            echo "- Install the PWA and confirm the prompt appears"
+            echo "- Reload with the network off"
+            echo "- Restore a backup taken with the previous build"
+          } > NOTES.md
+          cat NOTES.md
+
+      - name: Draft the release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ inputs.tag || github.ref_name }}
+          name: Vyay ${{ inputs.tag || github.ref_name }}
+          body_path: NOTES.md
+          # Draft, because the manual checks above have not happened yet.
+          draft: true
+          files: |
+            vyay-*.zip
+            vyay-*.zip.sha256
