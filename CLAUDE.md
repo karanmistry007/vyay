@@ -44,6 +44,11 @@ is yours. The allowance lives in `scripts/baseline.mjs`, which the hook and CI b
 - **Commit messages** are an imperative subject under about 60 characters, a blank line, then
   wrapped prose saying why the change exists and what it prevents. Match the existing history —
   it explains reasoning, not file lists.
+- **No tooling attribution, anywhere in the history.** No `Co-Authored-By:` trailer naming an
+  assistant, and no "generated with" line in a pull request description. End the message at the
+  last prose paragraph. A tool that helped write a change is not an author of it, and the
+  history should read as this project's own work. (`CLAUDE.md` is a filename and is of course
+  still referred to by name.)
 - Run `/verify` before opening the PR, and quote the result in the description.
 - Never commit straight to `develop` or `main`, and never force-push a branch somebody else
   may have pulled.
@@ -88,7 +93,10 @@ Each of these exists because breaking it caused a real bug. Do not relax one sil
 
 1. **No network, ever.** No fetch, no CDN, no analytics, no Google Fonts. The typeface is
    bundled. The only `fetch` in the repo is the service worker's cache handler in `public/sw.js`.
-   A dependency that phones home breaks the core promise of the app.
+   A dependency that phones home breaks the core promise of the app. The built `index.html`
+   carries a Content-Security-Policy (the `vyay-csp` plugin in `vite.config.js`) that makes the
+   browser enforce this; its `script-src 'self'` is also what keeps Netlify's injected
+   "Powered by Netlify" badge from drawing. Never add `'unsafe-inline'` or a remote origin to it.
 2. **Record CRUD goes through `store.jsx`.** Importing `db.js` elsewhere is allowed only for the
    storage *capability* helpers (`estimateUsage`, `persistStorage`, `storageKind`, `COLLECTIONS`),
    as `exporter.js`, `DataManager.jsx` and `Onboarding.jsx` do. Never to read or write records.

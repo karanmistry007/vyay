@@ -38,9 +38,9 @@ jobs:
         # break in one of them is a real break.
         node: ["20", "22", "24"]
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with:
           node-version: ${{ matrix.node }}
           cache: npm
@@ -57,9 +57,9 @@ jobs:
     name: Invariants
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with:
           node-version: "22"
 
@@ -72,9 +72,9 @@ jobs:
     name: Build, offline shell and budget
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with:
           node-version: "22"
           cache: npm
@@ -104,7 +104,7 @@ jobs:
         run: npm run check:size
 
       - name: Upload the built app
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: dist-${{ github.sha }}
           path: dist/
@@ -114,9 +114,9 @@ jobs:
     name: Dependencies
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with:
           node-version: "22"
           cache: npm
@@ -142,6 +142,11 @@ jobs:
     if: github.event_name == 'pull_request'
     runs-on: ubuntu-latest
     steps:
+      # The attribution check reads commit messages, so it needs the history, not just a tree.
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
       # CLAUDE.md: main is the release line and only ever receives develop. A pull request
       # from a topic branch straight into main skips integration entirely.
       - name: Base branch
@@ -161,7 +166,18 @@ jobs:
         env:
           HEAD: ${{ github.head_ref }}
           BASE: ${{ github.base_ref }}
+          AUTHOR: ${{ github.event.pull_request.user.login }}
         run: |
+          # <owner>/<kebab-topic> describes a branch a person named. Dependabot's branches
+          # encode the ecosystem and the version instead, and nothing can rename them, so
+          # enforcing the convention on them only blocks dependency updates — which is
+          # exactly what it did to all six of the first batch.
+          case "$AUTHOR" in
+            *'[bot]')
+              echo "Automated pull request from $AUTHOR; branch naming does not apply to '$HEAD'."
+              exit 0
+              ;;
+          esac
           if [ "$BASE" = "main" ]; then
             echo "Release merge from develop; branch naming does not apply."
             exit 0
@@ -172,3 +188,33 @@ jobs:
             echo "Branch '$HEAD' is not <owner>/<kebab-topic>, e.g. karan/dev-mode-sample-data."
             exit 1
           fi
+
+      # CLAUDE.md: no tooling attribution anywhere in the history. Catching it here is the
+      # difference between deleting a line before review and amending a pushed commit,
+      # which is what happened the one time this was not checked.
+      - name: No tooling attribution
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          bad=0
+          for sha in $(git rev-list "$BASE_SHA..$HEAD_SHA"); do
+            subject=$(git log -1 --format='%h %s' "$sha")
+            # The trailer is the real target; the loose grep catches a hand-written variant
+            # that git does not parse as a trailer. "CLAUDE.md" is a filename, so the pattern
+            # requires the attribution context around the name rather than the name alone.
+            if git log -1 --format='%(trailers:key=Co-Authored-By,valueonly)' "$sha" \
+                 | grep -qiE 'claude|anthropic|copilot'; then
+              echo "::error::$subject carries a tooling Co-Authored-By trailer."
+              bad=1
+            fi
+            if git log -1 --format='%B' "$sha" | grep -qiE 'generated with .*(claude|copilot)'; then
+              echo "::error::$subject carries a \"generated with\" line."
+              bad=1
+            fi
+          done
+          if [ "$bad" -ne 0 ]; then
+            echo "End the message at the last prose paragraph, then amend and force-push the branch."
+            exit 1
+          fi
+          echo "No tooling attribution in this branch's commits."
