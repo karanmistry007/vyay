@@ -44,6 +44,11 @@ is yours. The allowance lives in `scripts/baseline.mjs`, which the hook and CI b
 - **Commit messages** are an imperative subject under about 60 characters, a blank line, then
   wrapped prose saying why the change exists and what it prevents. Match the existing history —
   it explains reasoning, not file lists.
+- **No tooling attribution, anywhere in the history.** No `Co-Authored-By:` trailer naming an
+  assistant, and no "generated with" line in a pull request description. End the message at the
+  last prose paragraph. A tool that helped write a change is not an author of it, and the
+  history should read as this project's own work. (`CLAUDE.md` is a filename and is of course
+  still referred to by name.)
 - Run `/verify` before opening the PR, and quote the result in the description.
 - Never commit straight to `develop` or `main`, and never force-push a branch somebody else
   may have pulled.
