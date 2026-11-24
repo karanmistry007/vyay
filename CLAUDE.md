@@ -93,7 +93,10 @@ Each of these exists because breaking it caused a real bug. Do not relax one sil
 
 1. **No network, ever.** No fetch, no CDN, no analytics, no Google Fonts. The typeface is
    bundled. The only `fetch` in the repo is the service worker's cache handler in `public/sw.js`.
-   A dependency that phones home breaks the core promise of the app.
+   A dependency that phones home breaks the core promise of the app. The built `index.html`
+   carries a Content-Security-Policy (the `vyay-csp` plugin in `vite.config.js`) that makes the
+   browser enforce this; its `script-src 'self'` is also what keeps Netlify's injected
+   "Powered by Netlify" badge from drawing. Never add `'unsafe-inline'` or a remote origin to it.
 2. **Record CRUD goes through `store.jsx`.** Importing `db.js` elsewhere is allowed only for the
    storage *capability* helpers (`estimateUsage`, `persistStorage`, `storageKind`, `COLLECTIONS`),
    as `exporter.js`, `DataManager.jsx` and `Onboarding.jsx` do. Never to read or write records.

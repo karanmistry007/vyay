@@ -462,3 +462,8 @@
   }
   .vy-screen.push-enter, .vy-screen.push-exit, .vy-screen.fade-enter { animation:none !important; }
 }
+
+/* Netlify's free-plan badge. The Content-Security-Policy in vite.config.js is what keeps it
+   from drawing; this only takes its empty, clipped frame out of the page as well, in case
+   Netlify ever builds the badge in a way that policy does not catch. */
+#nl-badge-frame, #nl-hud-frame { display:none !important; }

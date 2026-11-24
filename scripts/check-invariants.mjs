@@ -198,6 +198,35 @@ if (existsSync(builtSw)) {
     }
   }
 
+  /*
+   * The built page's Content-Security-Policy is the browser-side half of invariant 1, and
+   * its script-src is what keeps the host's injected badge from drawing. Losing the plugin,
+   * or loosening script-src with 'unsafe-inline' or a remote origin, still builds and still
+   * runs, so nothing else would notice that either promise had gone.
+   */
+  const builtHtmlPath = join(DIST, "index.html");
+  if (existsSync(builtHtmlPath)) {
+    const csp = readFileSync(builtHtmlPath, "utf8")
+      .match(/<meta[^>]+http-equiv="Content-Security-Policy"[^>]+content="([^"]*)"/i)?.[1];
+    const directives = Object.fromEntries(
+      (csp ?? "").split(";").map((d) => d.trim().split(/\s+/)).filter((d) => d[0]).map(([k, ...v]) => [k, v])
+    );
+    const onlySelf = (name) => {
+      const sources = directives[name] ?? directives["default-src"];
+      return sources && sources.length === 1 && sources[0] === "'self'";
+    };
+    if (!csp) {
+      problems.push("[csp] dist/index.html has no Content-Security-Policy meta — the vyay-csp plugin in vite.config.js did not run.");
+    } else {
+      if (!onlySelf("script-src")) {
+        problems.push(`[csp] script-src is "${(directives["script-src"] ?? []).join(" ")}", not 'self' alone. Inline or remote script lets the host's badge, and anything else, back in.`);
+      }
+      if (!onlySelf("connect-src")) {
+        problems.push("[csp] connect-src is not 'self' alone, so the browser would no longer refuse a request that leaves the device.");
+      }
+    }
+  }
+
   for (const entry of built.match(/"\.\/[^"]*"/g) ?? []) {
     const path = entry.slice(1, -1).replace(/^\.\//, "");
     /* "./" is the bare directory URL, which the shell answers from index.html. */
