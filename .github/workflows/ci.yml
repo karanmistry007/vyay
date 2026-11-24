@@ -1,0 +1,220 @@
+# The gate every pull request passes before it can reach develop.
+#
+# This project has no test runner, no linter and no typechecker: four standalone scripts and
+# a set of invariants are the whole safety net, so CI runs exactly what a contributor runs
+# locally — `npm run verify` and `npm run check:invariants` — rather than inventing a second,
+# divergent definition of "passing".
+#
+# `npm run verify` tolerates the one assertion that already fails on a clean checkout and
+# fails on anything else. See scripts/baseline.mjs for why that distinction exists.
+name: CI
+
+on:
+  pull_request:
+    branches: [develop, main]
+  push:
+    branches: [develop, main]
+  workflow_dispatch:
+
+# A force-push or a quick second commit should not leave two runs racing for the same answer.
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  safety-net:
+    name: Safety net (Node ${{ matrix.node }})
+    runs-on: ubuntu-latest
+    strategy:
+      # One Node version failing is information about that version, not a reason to stop
+      # testing the others.
+      fail-fast: false
+      matrix:
+        # 20 and 22 are the LTS lines a contributor is likely to have; 24 is what this repo
+        # is actually developed on. The checks are plain Node scripts, so a version-specific
+        # break in one of them is a real break.
+        node: ["20", "22", "24"]
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node }}
+          cache: npm
+
+      # `npm ci` installs exactly what package-lock.json pins, and fails rather than
+      # quietly resolving something newer.
+      - name: Install
+        run: npm ci
+
+      - name: Safety net
+        run: npm run verify
+
+  invariants:
+    name: Invariants
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      # check-invariants.mjs only reads files, so it needs no dependencies and no build.
+      # Keeping it install-free means a broken lockfile still gets this feedback.
+      - name: Invariants
+        run: npm run check:invariants
+
+  build:
+    name: Build, offline shell and budget
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+
+      - name: Install
+        run: npm ci
+
+      # The second half of `npm run build` rewrites the service worker's precache list and
+      # is not optional: without it the app builds fine and then fails offline.
+      - name: Build
+        run: npm run build
+
+      - name: Confirm the service worker was rewritten
+        run: |
+          if grep -qE "__PRECACHE__|__VERSION__" dist/sw.js; then
+            echo "dist/sw.js still carries its build-time placeholders — the precache would be empty."
+            exit 1
+          fi
+          echo "Offline shell cache: $(node -p "require('fs').readFileSync('dist/sw.js','utf8').match(/const CACHE = \"([^\"]+)\"/)[1]")"
+
+      # With dist present this also checks the built worker, the manifest and every icon the
+      # install prompt depends on.
+      - name: Invariants against the build
+        run: npm run check:invariants
+
+      - name: Bundle budget
+        run: npm run check:size
+
+      - name: Upload the built app
+        uses: actions/upload-artifact@v4
+        with:
+          name: dist-${{ github.sha }}
+          path: dist/
+          retention-days: 14
+
+  dependencies:
+    name: Dependencies
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+
+      - name: Install
+        run: npm ci
+
+      # What ships to a phone is only the runtime dependency tree. This gate is the one that
+      # matters, and it must stay clean.
+      - name: Audit what ships
+        run: npm audit --omit=dev --audit-level=high
+
+      # Dev-tool advisories (Vite, esbuild) affect the dev server and the build host, not the
+      # static files a user installs. Worth seeing on every run, not worth blocking a bug fix
+      # behind a major Vite upgrade, so this reports without failing.
+      - name: Audit the toolchain (advisory)
+        continue-on-error: true
+        run: npm audit --audit-level=moderate
+
+  conventions:
+    name: Branch and base
+    # Only meaningful for a pull request; a push has no base to check.
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    steps:
+      # The attribution check reads commit messages, so it needs the history, not just a tree.
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      # CLAUDE.md: main is the release line and only ever receives develop. A pull request
+      # from a topic branch straight into main skips integration entirely.
+      - name: Base branch
+        env:
+          BASE: ${{ github.base_ref }}
+          HEAD: ${{ github.head_ref }}
+        run: |
+          if [ "$BASE" = "main" ] && [ "$HEAD" != "develop" ]; then
+            echo "This PR targets main from '$HEAD'. main only receives develop, when a version ships."
+            echo "Re-target it at develop."
+            exit 1
+          fi
+          echo "Base '$BASE' is fine for head '$HEAD'."
+
+      # Work happens on <owner>/<kebab-topic> branches cut from develop.
+      - name: Branch name
+        env:
+          HEAD: ${{ github.head_ref }}
+          BASE: ${{ github.base_ref }}
+          AUTHOR: ${{ github.event.pull_request.user.login }}
+        run: |
+          # <owner>/<kebab-topic> describes a branch a person named. Dependabot's branches
+          # encode the ecosystem and the version instead, and nothing can rename them, so
+          # enforcing the convention on them only blocks dependency updates — which is
+          # exactly what it did to all six of the first batch.
+          case "$AUTHOR" in
+            *'[bot]')
+              echo "Automated pull request from $AUTHOR; branch naming does not apply to '$HEAD'."
+              exit 0
+              ;;
+          esac
+          if [ "$BASE" = "main" ]; then
+            echo "Release merge from develop; branch naming does not apply."
+            exit 0
+          fi
+          if printf '%s' "$HEAD" | grep -qE '^[a-z0-9]+(-[a-z0-9]+)*/[a-z0-9]+(-[a-z0-9]+)*$'; then
+            echo "Branch '$HEAD' matches <owner>/<kebab-topic>."
+          else
+            echo "Branch '$HEAD' is not <owner>/<kebab-topic>, e.g. karan/dev-mode-sample-data."
+            exit 1
+          fi
+
+      # CLAUDE.md: no tooling attribution anywhere in the history. Catching it here is the
+      # difference between deleting a line before review and amending a pushed commit,
+      # which is what happened the one time this was not checked.
+      - name: No tooling attribution
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          bad=0
+          for sha in $(git rev-list "$BASE_SHA..$HEAD_SHA"); do
+            subject=$(git log -1 --format='%h %s' "$sha")
+            # The trailer is the real target; the loose grep catches a hand-written variant
+            # that git does not parse as a trailer. "CLAUDE.md" is a filename, so the pattern
+            # requires the attribution context around the name rather than the name alone.
+            if git log -1 --format='%(trailers:key=Co-Authored-By,valueonly)' "$sha" \
+                 | grep -qiE 'claude|anthropic|copilot'; then
+              echo "::error::$subject carries a tooling Co-Authored-By trailer."
+              bad=1
+            fi
+            if git log -1 --format='%B' "$sha" | grep -qiE 'generated with .*(claude|copilot)'; then
+              echo "::error::$subject carries a \"generated with\" line."
+              bad=1
+            fi
+          done
+          if [ "$bad" -ne 0 ]; then
+            echo "End the message at the last prose paragraph, then amend and force-push the branch."
+            exit 1
+          fi
+          echo "No tooling attribution in this branch's commits."

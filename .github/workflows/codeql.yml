@@ -1,0 +1,48 @@
+# Static security analysis.
+#
+# Vyay keeps every rupee a user records in their own browser and promises it never leaves the
+# device. There is no server to compromise, which moves the whole attack surface into this
+# JavaScript: a DOM-based injection in a screen that renders a merchant name, or an unsafe
+# parse of a restored backup, is the realistic failure. CodeQL reads for exactly that class of
+# bug, which no amount of arithmetic testing would notice.
+#
+# Requires GitHub code scanning. On a private repository that needs GitHub Advanced Security;
+# if it is not enabled this workflow will fail to upload its results, and deleting the file is
+# a reasonable response.
+name: CodeQL
+
+on:
+  pull_request:
+    branches: [develop, main]
+  push:
+    branches: [develop, main]
+  schedule:
+    # Advisories land against code that has not changed, so re-scan weekly rather than only
+    # when somebody happens to open a pull request. Monday, early.
+    - cron: "17 4 * * 1"
+
+concurrency:
+  group: codeql-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  analyse:
+    name: Analyse JavaScript
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      security-events: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: github/codeql-action/init@v3
+        with:
+          languages: javascript-typescript
+          # security-and-quality adds maintainability rules on top of the security ones.
+          queries: security-and-quality
+
+      # No build step: Vite output is bundled and minified, which tells CodeQL less than the
+      # source does. Analysing src/ directly is both faster and more precise.
+      - uses: github/codeql-action/analyze@v3
+        with:
+          category: "/language:javascript-typescript"

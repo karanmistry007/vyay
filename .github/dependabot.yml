@@ -1,0 +1,44 @@
+# Dependency updates, aimed at develop like every other change.
+#
+# Four runtime dependencies is a deliberate constraint, so these pull requests are reviewed
+# for size as much as for version: CI's bundle budget and runtime-dependency count are what
+# turn a quiet lockfile change into a visible one.
+version: 2
+
+updates:
+  - package-ecosystem: npm
+    directory: "/"
+    schedule:
+      interval: weekly
+      day: monday
+    open-pull-requests-limit: 5
+    # develop is the integration branch; nothing lands on main directly.
+    target-branch: develop
+    labels: ["dependencies"]
+    commit-message:
+      prefix: "Update"
+      include: scope
+    groups:
+      # One pull request for the toolchain rather than four. Vite and its plugin move
+      # together, and reviewing them apart just means resolving the same lockfile twice.
+      build-tooling:
+        patterns: ["vite", "@vitejs/*"]
+      react:
+        patterns: ["react", "react-dom"]
+    ignore:
+      # A major React upgrade is a project decision with migration work attached, not
+      # something to discover in an automated pull request.
+      - dependency-name: "react"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "react-dom"
+        update-types: ["version-update:semver-major"]
+
+  - package-ecosystem: github-actions
+    directory: "/"
+    schedule:
+      interval: weekly
+      day: monday
+    target-branch: develop
+    labels: ["dependencies", "ci"]
+    commit-message:
+      prefix: "Update"
