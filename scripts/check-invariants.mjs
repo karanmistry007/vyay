@@ -206,8 +206,18 @@ if (existsSync(builtSw)) {
    */
   const builtHtmlPath = join(DIST, "index.html");
   if (existsSync(builtHtmlPath)) {
-    const csp = readFileSync(builtHtmlPath, "utf8")
+    /*
+     * Read the attribute the way a browser does. Vite 8 serialises the quotes around
+     * 'self' as &#39;, so matching the raw bytes saw "&#39" for a policy that was intact.
+     */
+    const decode = (s) => s
+      .replace(/&#(\d+);/g, (_, n) => String.fromCodePoint(Number(n)))
+      .replace(/&#x([0-9a-f]+);/gi, (_, n) => String.fromCodePoint(parseInt(n, 16)))
+      .replace(/&quot;/g, '"').replace(/&apos;/g, "'").replace(/&lt;/g, "<").replace(/&gt;/g, ">")
+      .replace(/&amp;/g, "&");
+    const raw = readFileSync(builtHtmlPath, "utf8")
       .match(/<meta[^>]+http-equiv="Content-Security-Policy"[^>]+content="([^"]*)"/i)?.[1];
+    const csp = raw === undefined ? undefined : decode(raw);
     const directives = Object.fromEntries(
       (csp ?? "").split(";").map((d) => d.trim().split(/\s+/)).filter((d) => d[0]).map(([k, ...v]) => [k, v])
     );
