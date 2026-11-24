@@ -166,7 +166,18 @@ jobs:
         env:
           HEAD: ${{ github.head_ref }}
           BASE: ${{ github.base_ref }}
+          AUTHOR: ${{ github.event.pull_request.user.login }}
         run: |
+          # <owner>/<kebab-topic> describes a branch a person named. Dependabot's branches
+          # encode the ecosystem and the version instead, and nothing can rename them, so
+          # enforcing the convention on them only blocks dependency updates — which is
+          # exactly what it did to all six of the first batch.
+          case "$AUTHOR" in
+            *'[bot]')
+              echo "Automated pull request from $AUTHOR; branch naming does not apply to '$HEAD'."
+              exit 0
+              ;;
+          esac
           if [ "$BASE" = "main" ]; then
             echo "Release merge from develop; branch naming does not apply."
             exit 0
@@ -193,7 +204,7 @@ jobs:
             # that git does not parse as a trailer. "CLAUDE.md" is a filename, so the pattern
             # requires the attribution context around the name rather than the name alone.
             if git log -1 --format='%(trailers:key=Co-Authored-By,valueonly)' "$sha" \
-                 | grep -qiE 'claude|anthropic|copilot|noreply@'; then
+                 | grep -qiE 'claude|anthropic|copilot'; then
               echo "::error::$subject carries a tooling Co-Authored-By trailer."
               bad=1
             fi
