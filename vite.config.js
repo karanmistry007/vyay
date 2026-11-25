@@ -39,10 +39,42 @@ const contentSecurityPolicy = () => ({
   ],
 });
 
+/*
+ * Drops the React `key` that lucide stamps on every shape inside every icon. The keys are six
+ * random base-36 characters each, 382 of them across the icons we ship, and random text is the
+ * one thing gzip cannot shrink: they cost about 2 kB of the bundle budget, as much as a screen.
+ * They do nothing at runtime. An icon's shapes are a fixed list that never reorders, so React's
+ * positional matching is exactly right without them; production React does not warn either.
+ * Build only, because development React would warn about the missing keys on every render.
+ *
+ * Narrow on purpose: lucide's per-icon modules only, and only a string key closing an attribute
+ * object. If a lucide upgrade changes that shape, nothing is stripped and the build says so,
+ * and check-size reports the budget it gives back, rather than the build silently changing.
+ */
+const LUCIDE_ICON = /[\\/]lucide-react[\\/]dist[\\/]esm[\\/]icons[\\/][^\\/]+\.mjs$/;
+const lucideIconKeys = () => {
+  let seen = 0, stripped = 0;
+  return {
+    name: "vyay-lucide-icon-keys",
+    apply: "build",
+    transform(code, id) {
+      if (!LUCIDE_ICON.test(id)) return null;
+      seen++;
+      const out = code.replace(/,\s*key:\s*"[a-z0-9]+"(?=\s*\})/g, "");
+      if (out === code) return null;
+      stripped++;
+      return { code: out, map: null };
+    },
+    buildEnd() {
+      if (seen && !stripped) this.warn(`lucide icon keys: none stripped from ${seen} icons; has lucide's icon format changed?`);
+    },
+  };
+};
+
 export default defineConfig({
   base: "./",
   define: { __BUILD_ID__: JSON.stringify(BUILD_ID) },
-  plugins: [react(), contentSecurityPolicy()],
+  plugins: [react(), contentSecurityPolicy(), lucideIconKeys()],
   server: { host: true, port: 5173 },
   build: { outDir: "dist", sourcemap: false },
 });
