@@ -1,6 +1,9 @@
 # Vyay
 
-Version 1.0.0 — see [CHANGELOG.md](CHANGELOG.md) for what changed in each release. A local-first personal money tracker: React + Vite, installable as a PWA,
+**Live at [vyay.karanmistry.in](https://vyay.karanmistry.in).** Open it on a phone and add it to
+the home screen; your records stay on that device and never reach the site.
+
+Version 1.0.1 — see [CHANGELOG.md](CHANGELOG.md) for what changed in each release. A local-first personal money tracker: React + Vite, installable as a PWA,
 every record stored in the browser's own database.
 
 A personal money tracker that runs entirely on your own device. React + Vite, installable as a
@@ -246,6 +249,7 @@ service worker registers, the app installs, and it opens fullscreen with its own
 **3. Static hosting — the one to use for a few weeks of real testing**
 
 `dist/` is plain static files. Drop it on Netlify, Vercel, Cloudflare Pages or GitHub Pages.
+The production build of each release is deployed this way to https://vyay.karanmistry.in.
 Your data still never leaves the phone; the host only ever serves the app shell. This gives you a
 stable HTTPS URL so the installed app keeps working without your laptop running.
 

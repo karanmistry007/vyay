@@ -47,8 +47,9 @@ changed since the last tag, run the `ledger-auditor` agent and include its verdi
 table. Wait for the maintainer to merge it.
 
 **10. ⏸ Release pull request, `develop` → `main`.** Title `Release vX.Y.Z`. The description is
-the changelog section, then the verification results from steps 4–7, then the "Still needs a
-human" list. Wait for the maintainer to merge it with a merge commit.
+the line `**Live:** https://vyay.karanmistry.in`, then the changelog section, then the
+verification results from steps 4–7, then the "Still needs a human" list. Wait for the
+maintainer to merge it with a merge commit.
 
 **11. ⏸ Tag on `main`, when told to.** Only on `main`, only on that merge commit:
 
@@ -62,8 +63,9 @@ git push origin vX.Y.Z
 Never tag `develop` or a topic branch, never move or reuse a tag. `release.yml` refuses a tag
 that is not on `main`, or that disagrees with the version or the changelog.
 
-**12. Report.** Link the draft release that `release.yml` opened, and list what a human still
-has to do before publishing it: install the PWA from the zip, reload with the network off,
-restore a backup taken with the previous version, then publish the draft and deploy that same
-`dist/`. Finally, if anything landed on `main` alone, open a PR merging `main` back into
+**12. Report.** Link the draft release that `release.yml` opened, and confirm its notes open
+with the live address, https://vyay.karanmistry.in. List what a human still has to do before
+publishing it: install the PWA from the zip, reload with the network off, restore a backup
+taken with the previous version, then publish the draft and deploy that same `dist/` to
+https://vyay.karanmistry.in. Finally, if anything landed on `main` alone, open a PR merging `main` back into
 `develop`.

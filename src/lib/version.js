@@ -7,7 +7,7 @@
  * `version` in package.json and have a section in CHANGELOG.md; check:invariants enforces
  * both, and the release workflow refuses a tag that disagrees with either.
  */
-export const APP_VERSION = "1.0.0";
+export const APP_VERSION = "1.0.1";
 
 /* Minute-precision UTC stamp set by vite.config.js, so two builds of one version differ. */
 export const APP_BUILD = __BUILD_ID__;

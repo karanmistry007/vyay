@@ -7,9 +7,24 @@ out under "Versioning and releases" in `CLAUDE.md`.
 
 Write for the person using the app, not for the code: what they can now do, what stopped going
 wrong, and whether anything about their data changed. The section for a version becomes the
-body of its GitHub release, so it must exist before the tag is pushed.
+body of its GitHub release, so it must exist before the tag is pushed. The release notes open
+with the live app, https://vyay.karanmistry.in, which the release workflow adds on its own.
 
 ## [Unreleased]
+
+## [1.0.1] — 2026-11-25
+
+### Fixed
+
+- Quick add no longer sits silently with no voice button on phones. Where voice is off, it now
+  says why: Chrome on Android cannot yet turn speech into text on the phone itself, only by
+  sending it to a server, and Vyay never does that. A browser that does not answer the question
+  no longer leaves the sheet waiting, and "Check again" asks once more.
+
+### Your data
+
+Nothing about stored data changed. It stays at schema 6, so an install or backup from 1.0.0
+carries forward as it is.
 
 ## [1.0.0] — 2026-11-25
 
@@ -51,5 +66,6 @@ works with no connection at all once installed.
 Stored data is at schema 6. Nothing is renamed or dropped, so an install or backup from any
 0.x build upgrades on first load with nothing to do.
 
-[Unreleased]: https://github.com/karanmistry007/vyay/compare/v1.0.0...develop
+[Unreleased]: https://github.com/karanmistry007/vyay/compare/v1.0.1...develop
+[1.0.1]: https://github.com/karanmistry007/vyay/compare/v1.0.0...v1.0.1
 [1.0.0]: https://github.com/karanmistry007/vyay/releases/tag/v1.0.0
