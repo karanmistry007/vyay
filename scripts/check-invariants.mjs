@@ -3,7 +3,7 @@
  *
  * Each rule below exists because breaking it caused a real bug, and most of them break
  * silently: a stray fetch still renders, a version mismatch still builds, a second place
- * reading db.js still works right up until two writers disagree. The four test scripts
+ * reading db.js still works right up until two writers disagree. The five test scripts
  * check the arithmetic; this one checks the promises.
  *
  * Not everything belongs here. That every amount passes round2() on the way into the
@@ -58,6 +58,23 @@ for (const file of [...sourceFiles, join(ROOT, "index.html")]) {
       problems.push(`[no network] ${where} references ${url[0]} — no CDN, no remote font, no analytics.`);
     }
   });
+}
+
+/*
+ * Speech recognition is the one browser API that can send what a person says to a server
+ * without the page making any request the CSP could refuse. It is allowed in exactly one
+ * module, and only while that module still requires recognition on the device.
+ */
+const VOICE_OWNER = "src/lib/voice.js";
+for (const file of sourceFiles) {
+  const path = rel(file);
+  const src = readFileSync(file, "utf8");
+  if (path !== VOICE_OWNER && /\b(webkit)?SpeechRecognition\b/.test(src)) {
+    problems.push(`[no network] ${path} touches SpeechRecognition — only ${VOICE_OWNER} may, because only it insists on processLocally.`);
+  }
+  if (path === VOICE_OWNER && !/\.processLocally\s*=\s*true/.test(src)) {
+    problems.push(`[no network] ${VOICE_OWNER} no longer sets processLocally = true, so voice could fall back to a server.`);
+  }
 }
 
 /* ----------------------------------------------------------------------- *

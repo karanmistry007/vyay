@@ -1,7 +1,7 @@
 /**
  * Run the whole safety net and judge the result against the known baseline.
  *
- * This project has no test runner, no linter and no typechecker: four standalone scripts
+ * This project has no test runner, no linter and no typechecker: five standalone scripts
  * are all there is. Running them from CI directly does not work, because test-analytics.mjs
  * exits 1 on a clean checkout over one assertion that assumes the current month. A pipeline
  * that is red before anybody has changed anything teaches people to ignore it, so this
@@ -9,7 +9,7 @@
  * non-zero only for the former.
  *
  * Usage:
- *   node scripts/verify.mjs            the four scripts
+ *   node scripts/verify.mjs            the five scripts
  *   node scripts/verify.mjs --build    also build, and prove the service worker was rewritten
  */
 import { execSync, spawnSync } from "node:child_process";
@@ -25,6 +25,7 @@ const SCRIPTS = [
   { file: "test-format.mjs", what: "money formatting: fmt, round2, tint" },
   { file: "test-analytics.mjs", what: "report maths in src/lib/analytics.js" },
   { file: "test-planner.mjs", what: "planRepair correctness and idempotency" },
+  { file: "test-quickparse.mjs", what: "quick add: a sentence into a draft transaction" },
 ];
 
 const withBuild = process.argv.includes("--build");
@@ -153,4 +154,4 @@ if (regressed) {
 
 const totalPassed = results.reduce((n, r) => n + r.passed, 0);
 const allowed = results.reduce((n, r) => n + r.known.length, 0);
-console.log(`\nAll four scripts behaved: ${totalPassed} passed, ${allowed} known baseline failure${allowed === 1 ? "" : "s"}, 0 regressions.`);
+console.log(`\nAll ${results.length} scripts behaved: ${totalPassed} passed, ${allowed} known baseline failure${allowed === 1 ? "" : "s"}, 0 regressions.`);

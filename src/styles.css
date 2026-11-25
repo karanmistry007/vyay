@@ -689,6 +689,35 @@
     --glass-sheet:rgba(26,27,34,.98); --surface:rgba(36,38,46,.96); }
 }
 
+/* Quick add: the mic, and the draft it builds. The pulse is the only sign the mic is open, so it
+   stays visible as a ring colour when reduced motion stops it moving. */
+.vy-voice { display:flex; flex-direction:column; align-items:center; gap:10px; margin:2px 0 16px; }
+.vy-quick-lead { margin:-4px 0 14px; line-height:1.5; }
+.vy-voice-setup { margin-bottom:14px; }
+.vy-voice-setup .vy-btn { margin-top:12px; }
+.vy-mic { position:relative; width:76px; height:76px; border-radius:50%; border:0; display:grid; place-items:center; cursor:pointer;
+  background:var(--ink); color:var(--bg); box-shadow:var(--shadow-soft);
+  transition:transform var(--t-med) var(--ease-bounce), background var(--t-fast) var(--ease-out); }
+.vy-mic:active { transform:scale(.92); }
+.vy-mic:focus-visible { outline:3px solid var(--accent-soft); outline-offset:3px; }
+.vy-mic.on { box-shadow:0 0 0 6px var(--accent-soft); }
+/* The ring grows and fades on transform and opacity alone, so the pulse never repaints the page. */
+.vy-mic.on::after { content:''; position:absolute; inset:0; border-radius:50%; background:var(--accent); opacity:0;
+  pointer-events:none; animation:micPulse 1.4s var(--ease-out) infinite; }
+@keyframes micPulse { 0% { transform:scale(1); opacity:.38; } 100% { transform:scale(1.45); opacity:0; } }
+.vy-voice-t { font-size:13px; font-weight:700; color:var(--muted); letter-spacing:-.01em; }
+.vy-draft { margin-top:14px; padding:6px 0; animation:riseIn var(--t-med) var(--ease-spring) both; }
+.vy-draft-row { display:flex; align-items:baseline; gap:12px; padding:9px 18px; }
+.vy-draft-row .k { flex:0 0 auto; min-width:84px; font-size:12px; font-weight:800; color:var(--muted); text-transform:uppercase; letter-spacing:.06em; }
+.vy-draft-row b { flex:1; min-width:0; font-size:15px; font-weight:800; letter-spacing:-.02em; overflow-wrap:anywhere; }
+.vy-draft-row b i { font-style:normal; font-weight:600; font-size:12.5px; color:var(--muted); margin-left:8px; }
+.vy-draft-row b.missing { color:var(--warn); font-weight:700; font-size:14px; }
+.vy-quick-go { margin-top:14px; }
+.vy-draft-foot { margin-top:10px; text-align:center; font-size:12.5px; }
+.vy-draft-warn { display:flex; gap:8px; align-items:flex-start; margin-top:10px; padding:10px 14px; border-radius:var(--r-md);
+  background:var(--warn-soft); color:var(--ink2); font-size:13px; font-weight:600; line-height:1.45; }
+.vy-draft-warn svg { flex:0 0 auto; color:var(--warn); margin-top:1px; }
+
 /* Honour the system setting: no travel, no bounce, instant state changes. */
 @media (prefers-reduced-motion:reduce) {
   .vy *, .vy *::before, .vy *::after {

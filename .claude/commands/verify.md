@@ -4,14 +4,14 @@ allowed-tools: Bash(npm run verify), Bash(npm run verify:build), Bash(npm run ch
 ---
 
 Run the full safety net. There is no test runner, linter or typechecker in this project, so
-four standalone scripts and a set of machine-checkable invariants are all there is.
+five standalone scripts and a set of machine-checkable invariants are all there is.
 
 ```
 npm run verify
 npm run check:invariants
 ```
 
-`npm run verify` wraps the four scripts and judges them against the known baseline, which is
+`npm run verify` wraps the five scripts and judges them against the known baseline, which is
 why it is used instead of running each one by hand: `test-analytics.mjs` exits non-zero on a
 clean checkout, and only the wrapper can tell that apart from a regression. The same two
 commands are what CI runs, so a green run here means a green run there.

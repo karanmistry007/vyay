@@ -11,6 +11,7 @@
     "test:format": "node test-format.mjs",
     "test:analytics": "node test-analytics.mjs",
     "test:planner": "node test-planner.mjs",
+    "test:quickparse": "node test-quickparse.mjs",
     "check:invariants": "node scripts/check-invariants.mjs",
     "check:size": "node scripts/check-size.mjs",
     "verify": "node scripts/verify.mjs",

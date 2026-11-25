@@ -34,6 +34,7 @@ const PAIRED = {
   "src/lib/ledger.js": "test-analytics.mjs",
   "src/lib/money.js": "test-format.mjs",
   "src/lib/color.js": "test-format.mjs",
+  "src/lib/quickParse.js": "test-quickparse.mjs",
 };
 
 const readStdin = () => new Promise((done) => {
