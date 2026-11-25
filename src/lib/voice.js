@@ -34,27 +34,48 @@ const asked = new Map();
  *   { state: "ready", lang }          on-device recognition is installed
  *   { state: "downloadable", lang }   the browser can fetch its speech model once, on request
  *   { state: "downloading", lang }    it is already fetching it
- *   { state: "off" }                  only server-side recognition, or none: no voice
+ *   { state: "off", why }             no voice, and why, so the sheet can say it plainly:
+ *       "none"        no speech recognition at all (Firefox, some in-app browsers)
+ *       "server-only" recognition exists but cannot be held to the device (Safari, older Chrome)
+ *       "no-model"    the browser can do it locally elsewhere, but not here. Chrome on Android
+ *                     has the on-device API yet answers "unavailable" for every language, so
+ *                     the same phone that dictates through Gboard gets no button from us.
+ *       "no-answer"   the browser never replied; asked again on the next opening
  */
 export function voiceSupport(langs, { fresh = false } = {}) {
   const key = langs.join(",");
   if (!fresh && asked.has(key)) return asked.get(key);
-  const p = probe(langs).catch(() => ({ state: "off" }));
+  const p = probe(langs).catch(() => ({ state: "off", why: "none" }));
   asked.set(key, p);
+  /* A silence is not an answer: do not let it stand for the rest of the session. */
+  p.then((v) => { if (v.why === "no-answer" && asked.get(key) === p) asked.delete(key); });
   return p;
+}
+
+/* Some builds expose available() and never settle it, which left the sheet on "checking" with no button and no word. */
+const ASK_MS = 5000;
+const silent = Symbol("no-answer");
+function within(promise, ms) {
+  let timer;
+  return Promise.race([
+    promise,
+    new Promise((done) => { timer = setTimeout(() => done(silent), ms); }),
+  ]).finally(() => clearTimeout(timer));
 }
 
 async function probe(langs) {
   const SR = Recognition();
-  if (!SR || typeof SR.available !== "function") return { state: "off" };
+  if (!SR) return { state: "off", why: "none" };
+  if (typeof SR.available !== "function") return { state: "off", why: "server-only" };
   let probeInstance;
-  try { probeInstance = new SR(); } catch { return { state: "off" }; }
-  if (!("processLocally" in probeInstance)) return { state: "off" };
+  try { probeInstance = new SR(); } catch { return { state: "off", why: "none" }; }
+  if (!("processLocally" in probeInstance)) return { state: "off", why: "server-only" };
 
   const results = [];
   for (const lang of langs) {
     let a = "unavailable";
-    try { a = await SR.available({ langs: [lang], processLocally: true }); } catch { /* treated as unavailable */ }
+    try { a = await within(SR.available({ langs: [lang], processLocally: true }), ASK_MS); } catch { /* treated as unavailable */ }
+    if (a === silent) return { state: "off", why: "no-answer" };
     if (a === "available") return { state: "ready", lang };
     results.push({ lang, a });
   }
@@ -62,7 +83,21 @@ async function probe(langs) {
   if (dl) return { state: "downloading", lang: dl.lang };
   const can = results.find((r) => r.a === "downloadable");
   if (can) return { state: "downloadable", lang: can.lang };
-  return { state: "off" };
+  return { state: "off", why: "no-model" };
+}
+
+/** Why voice is off, in words for the person holding the phone. */
+export function voiceOffText(why) {
+  switch (why) {
+    case "no-model":
+      return "This browser can't turn speech into text on this device yet. On phones, Chrome still sends your voice to a server for that, so voice is off here. It works in Chrome on a computer.";
+    case "server-only":
+      return "This browser's speech recognition sends your voice to a server, so voice is off here.";
+    case "no-answer":
+      return "The browser didn't say whether it can listen on this device.";
+    default:
+      return "This browser has no speech recognition, so voice is off here.";
+  }
 }
 
 /**

@@ -3,7 +3,7 @@ import { Mic, Square, Download, Sparkles, TriangleAlert, RefreshCw } from "lucid
 import { Sheet } from "./ui.jsx";
 import { parseQuick, draftScore } from "../lib/quickParse.js";
 import {
-  voiceSupport, listen, voiceErrorText, speechLangs, modelNeedsRefresh, refreshVoiceModel,
+  voiceSupport, voiceOffText, listen, voiceErrorText, speechLangs, modelNeedsRefresh, refreshVoiceModel,
 } from "../lib/voice.js";
 import { fmt, buzz, relDay, isoToday } from "../lib/money.js";
 
@@ -91,7 +91,14 @@ export default function QuickDraft({ open, onClose, s, fallbackType, autoListen,
     setVoice(v);
     if (!ok && v.state !== "ready" && v.state !== "downloading") setVErr("The speech model could not be set up. Typing works the same.");
   };
-  const recheck = async () => { buzz(5); setVoice(await voiceSupport(langs, { fresh: true })); };
+  /* Asking can take a few seconds now that a silent browser is waited out, so say it is asking. */
+  const [checking, setChecking] = useState(false);
+  const recheck = async () => {
+    buzz(5); setChecking(true);
+    const v = await voiceSupport(langs, { fresh: true });
+    if (!alive.current) return;
+    setChecking(false); setVoice(v);
+  };
 
   const close = () => { if (rec.current) { rec.current.abort(); rec.current = null; } onClose(); };
   const apply = () => { if (!heard || listening) return; onApply(draft); };
@@ -141,18 +148,23 @@ export default function QuickDraft({ open, onClose, s, fallbackType, autoListen,
           {voice.state === "downloadable"
             ? "Voice can work offline here once your browser downloads its speech model. After that, what you say is turned into text on this device and never sent anywhere."
             : "Your browser is still downloading its speech model. Voice will be ready when it finishes."}
-          <button className="vy-btn soft" disabled={installing}
+          <button className="vy-btn soft" disabled={installing || checking}
             onClick={voice.state === "downloadable" ? download : recheck}>
             {voice.state === "downloadable"
               ? <><Download size={17} />{installing ? "Setting up…" : "Set up voice"}</>
-              : <><RefreshCw size={17} />Check again</>}
+              : <><RefreshCw size={17} />{checking ? "Checking…" : "Check again"}</>}
           </button>
         </div>
       )}
       {voice.state === "off" && (
-        <div className="vy-sub vy-quick-lead">
-          Voice needs speech recognition that runs on this device, and this browser only offers one that sends
-          your voice to a server, so it is off. Your keyboard's mic works in the box below.
+        <div className="vy-note vy-voice-setup">
+          {voiceOffText(voice.why)} Your keyboard's mic works in the box below.
+          {/* Worth a second look only where the answer can change: a silence, or a model that may arrive with a browser update. */}
+          {(voice.why === "no-answer" || voice.why === "no-model") && (
+            <button className="vy-btn soft" onClick={recheck} disabled={checking}>
+              <RefreshCw size={17} />{checking ? "Checking…" : "Check again"}
+            </button>
+          )}
         </div>
       )}
 
