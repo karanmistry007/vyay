@@ -1,10 +1,14 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import {
-  X, Check, Wand2, Building2, ArrowRight, Plus, MoreHorizontal, Sparkles, Calendar,
+  X, Check, Mic, Building2, ArrowRight, Plus, MoreHorizontal, Calendar,
   Tag as TagIcon, Users, EyeOff, Settings2,
 } from "lucide-react";
 import { Seg, Sheet, Field, PickerSheet, DatePick, Switch, useToast } from "../components/ui.jsx";
 import SplitEditor from "../components/SplitEditor.jsx";
+
+/* Quick add is most of a parser; load it the first time someone opens it, not with the app. */
+const loadQuickDraft = () => import("../components/QuickDraft.jsx");
+const QuickDraft = React.lazy(loadQuickDraft);
 import { Ic, ACCOUNT_ICON } from "../lib/icons.jsx";
 import { fmt, buzz, sum, isoToday, relDay, iso, round2 } from "../lib/money.js";
 import { byOrder, myShareOf } from "../lib/ledger.js";
@@ -63,7 +67,6 @@ export default function Entry({ s, nav, editId, initialType, initialDate, onDone
 
   const [raw, setRaw] = useState(existing ? String(existing.amount) : "");
   const [pick, setPick] = useState(null);
-  const [quick, setQuick] = useState("");
   const [showQuick, setShowQuick] = useState(false);
 
   useEffect(() => { if (!editId && amtRef.current) amtRef.current.focus(); }, [editId]);
@@ -118,27 +121,40 @@ export default function Entry({ s, nav, editId, initialType, initialDate, onDone
     setT((p) => ({ ...p, type: v, cat: v === "Transfer" ? null : d.cat, to: null, shares: null, payer: null }));
   };
 
-  const runQuick = () => {
-    const text = quick.toLowerCase();
-    const num = text.match(/(\d+(?:\.\d+)?)/);
-    if (num) setRaw(num[1]);
-    const rule = s.rules.find((r) => r.on && r.match && text.includes(r.match));
-    if (rule) {
-      if (rule.cat) set("cat", rule.cat);
-      if (rule.ret) set("ret", rule.ret);
-    } else {
-      const r = s.retailers.find((x) => text.includes(x.name.toLowerCase()));
-      if (r) { set("ret", r.id); if (r.defaultCat) set("cat", r.defaultCat); }
-      else {
-        const c = s.categories.find((x) => text.includes(x.name.toLowerCase()));
-        if (c) { set("cat", c.id); set("type", c.dir); }
-      }
-    }
-    const m = s.methods.find((x) => text.includes(x.name.toLowerCase().split(" ")[0]));
-    if (m) set("method", m.id);
-    if (/\b(income|received|salary|credited)\b/.test(text)) set("type", "Income");
-    buzz(10); setShowQuick(false); setQuick("");
-    toast("Filled in — check it before saving");
+  /*
+   * A draft from quick add fills the form; it never saves. Only what the sentence settled is
+   * written over the form — everything else keeps its default — and a change of type resets
+   * the type-bound fields exactly as tapping the Expense / Income / Transfer switch does, so a
+   * draft cannot leave an expense category on an income or a share on a transfer.
+   */
+  const applyDraft = (d) => {
+    if (d.amount != null) setRaw(String(round2(d.amount)));
+    setT((p) => {
+      let n = p;
+      if (d.type !== p.type) {
+        const df = defaultFor(d.type);
+        n = { ...p, type: d.type, cat: d.type === "Transfer" ? null : df.cat, to: null, shares: null, payer: null, splits: null };
+      } else n = { ...p };
+      if (d.cat && d.type !== "Transfer") n.cat = d.cat;
+      if (d.account) n.account = d.account;
+      if (d.type === "Transfer" && d.to) n.to = d.to;
+      if (n.type === "Transfer" && n.to && n.to === n.account) n.to = null;
+      if (d.method) n.method = d.method;
+      if (d.ret && d.type !== "Transfer") n.ret = d.ret;
+      if (d.date && d.date <= isoToday()) n.date = d.date;
+      if (d.notes) n.notes = d.notes;
+      return n;
+    });
+    /*
+     * A new amount under shares typed earlier still passes validation (shares only have to fit
+     * inside it) but silently changes what is owed, so it gets its own prompt. Unmounting skips
+     * the sheet's slide-out; acceptable, because the form it reveals is the point.
+     */
+    const sharedBefore = d.type === t.type && ((t.shares && t.shares.length) || (t.splits && t.splits.length));
+    buzz(10); setShowQuick(false);
+    toast(sharedBefore && d.amount != null && round2(d.amount) !== round2(amount)
+      ? "Amount changed — check how it is shared, then save"
+      : "Draft filled in — check it, then save");
   };
 
   const save = async () => {
@@ -174,7 +190,15 @@ export default function Entry({ s, nav, editId, initialType, initialDate, onDone
       <div className="vy-nav">
         <button className="vy-iconbtn" onClick={() => { buzz(5); onDone(); }} aria-label="Close"><X size={20} /></button>
         <div className="vy-nav-t">{t.id ? "Edit" : "New"} {t.type.toLowerCase()}</div>
-        <button className="vy-iconbtn" onClick={() => { buzz(5); setShowQuick(true); }} aria-label="Quick add"><Wand2 size={18} /></button>
+        {/*
+          * New entries only. On an edit, one sentence would overwrite a saved record's amount and
+          * category in a single tap, and on a settlement it would repoint the IOU's clearedBy at
+          * something else entirely. Fetching the chunk on press hides its load behind the tap.
+          */}
+        {!t.id && (
+          <button className="vy-iconbtn" onPointerDown={loadQuickDraft} onFocus={loadQuickDraft}
+            onClick={() => { buzz(5); setShowQuick(true); }} aria-label="Quick add by voice or text"><Mic size={18} /></button>
+        )}
       </div>
 
       <div className="vy-pad">
@@ -374,16 +398,12 @@ export default function Entry({ s, nav, editId, initialType, initialDate, onDone
       <Sheet open={pick === "date"} onClose={() => setPick(null)} title="Date">
         <DatePick value={t.date} onPick={(d) => { set("date", d); setPick(null); }} />
       </Sheet>
-      <Sheet open={showQuick} onClose={() => setShowQuick(false)} title="Quick add">
-        <p className="vy-sub" style={{ marginTop: -4, marginBottom: 12, lineHeight: 1.5 }}>
-          Type it the way you would say it. Your auto-categorise rules run against this text.
-        </p>
-        <input className="vy-input" autoFocus placeholder="450 groceries upi" value={quick}
-          onChange={(e) => setQuick(e.target.value)} onKeyDown={(e) => e.key === "Enter" && runQuick()} />
-        <button className="vy-btn accent" style={{ marginTop: 14 }} onClick={runQuick} disabled={!quick.trim()}>
-          <Sparkles size={17} />Fill the form
-        </button>
-      </Sheet>
+      {showQuick && (
+        <React.Suspense fallback={null}>
+          <QuickDraft open={showQuick} onClose={() => setShowQuick(false)} s={s} fallbackType={t.type}
+            autoListen onApply={applyDraft} />
+        </React.Suspense>
+      )}
     </div>
   );
 }

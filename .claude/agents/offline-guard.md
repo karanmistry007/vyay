@@ -44,7 +44,7 @@ Check:
   More screen's update row (already current / downloading / ready) and the
   `vyay:update-ready` and `vyay:offline-ready` events `App.jsx` listens for. A change to one
   side needs the other.
-- `src/lib/version.js` `APP_VERSION` matches `version` in `package.json`, and `__BUILD_ID__`
+- `src/lib/version.js` `APP_VERSION` matches `version` in `package.json` and has a `CHANGELOG.md` section, and `__BUILD_ID__`
   is still defined in `vite.config.js`. Both are quoted in bug reports.
 
 ## How to work

@@ -10,7 +10,13 @@
  * floor, served once and then cached forever — weighing them alongside code would let real
  * JavaScript growth hide behind a font that is not going to change.
  *
- * Run after `npm run build`. Exits 1 when the code payload is over budget.
+ * Code is split in two. What index.html loads is the startup payload: it stands between a
+ * tap on the icon and a usable screen, and it carries the original ceiling. A chunk behind a
+ * dynamic import (the quick-add parser, for one) is fetched only when its screen opens, so it
+ * is weighed against its own, smaller ceiling. Lumping the two together made moving code off
+ * the startup path look exactly as costly as adding it.
+ *
+ * Run after `npm run build`. Exits 1 when either payload is over its budget.
  */
 import { readdirSync, readFileSync, statSync, existsSync, appendFileSync } from "node:fs";
 import { join, relative, dirname, resolve, sep, extname } from "node:path";
@@ -27,6 +33,13 @@ const DIST = join(ROOT, "dist");
  * conversation about what was added, which is the entire point of having a number here.
  */
 const BUDGET_KB = 125;
+
+/*
+ * On-demand chunks. Set when the quick-add parser became the first one, at 11.5 kB, with room
+ * for one more feature that size. Moving code here from startup is the cheap way to make
+ * headroom; this ceiling is what stops it becoming a place to hide growth.
+ */
+const LAZY_BUDGET_KB = 20;
 const KB = 1024;
 
 if (!existsSync(DIST)) {
@@ -56,10 +69,21 @@ const files = walk(DIST)
   })
   .sort((a, b) => b.gz - a.gz);
 
-const code = files.filter((f) => CODE.has(f.ext) && f.path !== "sw.js");
-const other = files.filter((f) => !code.includes(f));
+/*
+ * Startup is index.html plus every script and stylesheet it names. Any other code under
+ * assets/ can only arrive through a dynamic import.
+ */
+const html = readFileSync(join(DIST, "index.html"), "utf8");
+const named = new Set([...html.matchAll(/(?:src|href)="(?:\.\/|\/)?([^"]+)"/g)].map((m) => m[1]));
+const isStartup = (f) => f.path === "index.html" || named.has(f.path);
+
+const allCode = files.filter((f) => CODE.has(f.ext) && f.path !== "sw.js");
+const code = allCode.filter(isStartup);
+const lazy = allCode.filter((f) => !isStartup(f));
+const other = files.filter((f) => !allCode.includes(f));
 
 const codeGz = code.reduce((n, f) => n + f.gz, 0);
+const lazyGz = lazy.reduce((n, f) => n + f.gz, 0);
 const otherGz = other.reduce((n, f) => n + f.gz, 0);
 const kb = (n) => (n / KB).toFixed(2) + " kB";
 
@@ -67,19 +91,22 @@ const rows = [
   "| file | raw | transferred |",
   "| --- | ---: | ---: |",
   ...code.map((f) => `| \`${f.path}\` | ${kb(f.raw)} | ${kb(f.gz)} |`),
-  `| **code total** | | **${kb(codeGz)}** |`,
+  `| **startup total** | | **${kb(codeGz)}** |`,
+  ...lazy.map((f) => `| \`${f.path}\` (on demand) | ${kb(f.raw)} | ${kb(f.gz)} |`),
+  `| **on-demand total** | | **${kb(lazyGz)}** |`,
   ...other.map((f) => `| \`${f.path}\` (not budgeted) | ${kb(f.raw)} | ${kb(f.gz)} |`),
 ];
 
 console.log("\nBundle\n");
 console.log(rows.join("\n"));
-console.log(`\n  code ${kb(codeGz)} gzipped against a ${BUDGET_KB} kB budget`);
+console.log(`\n  startup ${kb(codeGz)} gzipped against a ${BUDGET_KB} kB budget`);
+console.log(`  on demand ${kb(lazyGz)} gzipped against a ${LAZY_BUDGET_KB} kB budget`);
 console.log(`  plus ${kb(otherGz)} of fonts and icons, cached once`);
 
 if (process.env.GITHUB_STEP_SUMMARY) {
   appendFileSync(
     process.env.GITHUB_STEP_SUMMARY,
-    ["", "## Bundle", "", rows.join("\n"), "", `Code payload **${kb(codeGz)}** gzipped, budget **${BUDGET_KB} kB**.`, ""].join("\n")
+    ["", "## Bundle", "", rows.join("\n"), "", `Startup **${kb(codeGz)}** gzipped, budget **${BUDGET_KB} kB**. On demand **${kb(lazyGz)}**, budget **${LAZY_BUDGET_KB} kB**.`, ""].join("\n")
   );
 }
 
@@ -94,9 +121,19 @@ if (codeGz > budget) {
   process.exit(1);
 }
 
+const lazyBudget = LAZY_BUDGET_KB * KB;
+
+if (lazyGz > lazyBudget) {
+  console.error(
+    `\ncheck-size: on-demand chunks are ${kb(lazyGz)} gzipped, over their ${LAZY_BUDGET_KB} kB budget ` +
+    `by ${kb(lazyGz - lazyBudget)}.\nTrim them, or argue for a higher ceiling out loud.`
+  );
+  process.exit(1);
+}
+
 /* A near miss is worth saying before the commit that actually breaks it. */
 if (codeGz > budget * 0.95) {
   console.log(`\n  NOTE  within 5% of the budget — ${kb(budget - codeGz)} of headroom left.`);
 }
 
-console.log(`\n  PASS  bundle is ${kb(budget - codeGz)} under budget`);
+console.log(`\n  PASS  startup is ${kb(budget - codeGz)} under budget, on demand ${kb(lazyBudget - lazyGz)} under`);
