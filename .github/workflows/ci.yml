@@ -1,6 +1,6 @@
 # The gate every pull request passes before it can reach develop.
 #
-# This project has no test runner, no linter and no typechecker: four standalone scripts and
+# This project has no test runner, no linter and no typechecker: five standalone scripts and
 # a set of invariants are the whole safety net, so CI runs exactly what a contributor runs
 # locally — `npm run verify` and `npm run check:invariants` — rather than inventing a second,
 # divergent definition of "passing".
