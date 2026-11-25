@@ -83,6 +83,12 @@ under `## [Unreleased]`. Cutting a version renames that heading to the version a
 opens a fresh, empty `[Unreleased]`. That section becomes the GitHub release notes word for
 word, so it says what changed for the person using the app, not which files moved.
 
+**The live app is https://vyay.karanmistry.in, and every release says so.** `release.yml` puts
+that address at the top of each draft's notes, and the release pull request into `main` carries
+it too. A release note that does not say where the real app is leaves its reader holding a zip
+with nowhere to check it against. If the address ever moves, change it in `release.yml`,
+`README.md`, `.claude/commands/release.md` and here, in the same pull request.
+
 **Cutting a release** — `/release <x.y.z>` walks through it:
 
 1. On a `karan/release-x-y-z` branch from `develop`: bump the three places, move
@@ -98,7 +104,7 @@ word, so it says what changed for the person using the app, not which files move
    disagrees with `package.json`, `APP_VERSION` or the changelog. It then builds, zips `dist/`
    with a checksum and opens a **draft** GitHub release with the changelog section as notes.
 5. A human installs the zip, reloads with the network off, and restores a backup from the
-   previous version. Then they publish the draft and deploy that same `dist/`.
+   previous version. Then they publish the draft and deploy that same `dist/` to the live app.
 6. Merge `main` back into `develop` if anything landed on `main` alone. Normally nothing does.
 
 **A hotfix** follows the same path with a patch bump. There is no shortcut to `main`, because

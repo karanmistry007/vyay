@@ -119,10 +119,15 @@ jobs:
       - name: Release notes
         env:
           RAW_TAG: ${{ inputs.tag || github.ref_name }}
+          LIVE_URL: https://vyay.karanmistry.in
         run: |
           TAG="$RAW_TAG"
           PREVIOUS=$(git describe --tags --abbrev=0 "${TAG}^" 2>/dev/null || true)
+          # The live address leads every release, so whoever reads the notes knows where the
+          # real app is without having to install the zip.
           {
+            echo "**Live:** ${LIVE_URL}"
+            echo
             cat CHANGES.md
             echo
             if [ -n "$PREVIOUS" ]; then
@@ -145,6 +150,7 @@ jobs:
             echo "- Install the PWA and confirm the prompt appears"
             echo "- Reload with the network off"
             echo "- Restore a backup taken with the previous build"
+            echo "- Publish this draft and deploy the same \`dist/\` to ${LIVE_URL}"
           } > NOTES.md
           cat NOTES.md
 
