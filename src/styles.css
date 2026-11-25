@@ -221,6 +221,11 @@
 .vy-row-a b { font-size:16px; font-weight:800; letter-spacing:-.04em; font-variant-numeric:tabular-nums; }
 .vy-row-a span { display:block; font-size:11.5px; color:var(--muted); font-weight:600; margin-top:2px; }
 
+/* A row whose control is too wide to sit on the right: the control drops to its own line. */
+.vy-row.vy-row-stack { flex-direction:column; align-items:stretch; gap:12px; }
+.vy-row-top { display:flex; align-items:center; gap:14px; }
+.vy-row-stack .vy-seg button { padding:9px 6px; font-size:14px; }
+
 .vy-group > .vy-row + .vy-row::before,
 .vy-group .vy-rowwrap + .vy-rowwrap .vy-row::before,
 .vy-group .vy-row + .vy-rowwrap .vy-row::before {
@@ -473,6 +478,211 @@
 .vy-note { background:var(--surface); border-radius:var(--r-md); padding:16px 18px; font-size:14.5px; color:var(--ink2);
   font-weight:600; line-height:1.5; box-shadow:var(--shadow-soft); }
 .vy-danger-text { color:#D2564B; }
+
+/* ──────────────────────────────────────────────────────────────────────────
+   Liquid Glass — the optional look, layered on top of light or dark.
+
+   Two materials, the way the system uses them. Content (cards, lists, fields)
+   is a frosted "regular" material: enough opacity that figures stay readable.
+   Controls that float over content (tab bar, add button, nav buttons, chips,
+   segmented thumbs, sheets, dialogs, toast) are the clearer "liquid" material
+   with a specular rim, so they read as a separate layer above the page.
+
+   Glass needs something behind it to bend, so the flat field becomes a soft
+   colour wallpaper. It stays fully opaque: screens slide over one another and
+   a translucent screen would show the one underneath mid-push.
+   ────────────────────────────────────────────────────────────────────────── */
+.vy.glass {
+  --bg:#EEF1F7;
+  --bg-grad:
+    radial-gradient(120% 55% at 0% 0%, rgba(118,160,255,.55) 0%, rgba(118,160,255,0) 62%),
+    radial-gradient(90% 50% at 100% 6%, rgba(255,168,138,.42) 0%, rgba(255,168,138,0) 62%),
+    radial-gradient(105% 55% at 100% 100%, rgba(184,140,255,.40) 0%, rgba(184,140,255,0) 64%),
+    radial-gradient(110% 55% at 0% 100%, rgba(104,214,188,.38) 0%, rgba(104,214,188,0) 62%),
+    linear-gradient(180deg,#F3F5FB 0%,#E7EBF4 100%);
+  --surface:rgba(255,255,255,.58);
+  --surface-soft:rgba(255,255,255,.34);
+  --surface2:rgba(118,118,128,.12);
+  --surface3:rgba(118,118,128,.22);
+  --ink2:#36363B;
+  --muted:#7C7C84;
+  --line:rgba(60,60,67,.11);
+  --line2:rgba(60,60,67,.24);
+  --accent:#0A7AFF; --accent-soft:rgba(10,122,255,.14); --accent-ink:#0062CC;
+  --icon-neutral:rgba(11,11,12,.06);
+  --icon-solid-bg:rgba(255,255,255,.55);
+
+  /* the material itself */
+  --glass-fx:blur(30px) saturate(185%);
+  --glass-fx-clear:blur(18px) saturate(200%) brightness(1.06);
+  --glass-content:rgba(255,255,255,.56);
+  --glass-clear:rgba(255,255,255,.36);
+  --glass-lens:rgba(255,255,255,.78);
+  --glass-solid:rgba(250,251,254,.96);
+  --glass-sheet:rgba(246,247,251,.74);
+  --rim-light:rgba(255,255,255,.95);
+  --rim-fade:rgba(255,255,255,.18);
+  --rim-low:rgba(255,255,255,.55);
+  --glass-inner:inset 0 1px 1px rgba(255,255,255,.75), inset 0 -1px 1px rgba(255,255,255,.18);
+  --lens-shadow:0 2px 10px rgba(30,40,80,.12);
+
+  --shadow:0 1px 1px rgba(30,40,80,.04), 0 10px 30px rgba(30,40,80,.10);
+  --shadow-soft:0 1px 1px rgba(30,40,80,.03), 0 6px 18px rgba(30,40,80,.08);
+  --shadow-lift:0 2px 4px rgba(30,40,80,.06), 0 18px 44px rgba(30,40,80,.18);
+
+  --r-xl:30px; --r-lg:26px; --r-md:18px;
+}
+
+.vy.glass.dark {
+  --bg:#0A0B10;
+  --bg-grad:
+    radial-gradient(120% 55% at 0% 0%, rgba(60,92,230,.44) 0%, rgba(60,92,230,0) 62%),
+    radial-gradient(90% 50% at 100% 8%, rgba(206,74,140,.30) 0%, rgba(206,74,140,0) 62%),
+    radial-gradient(105% 55% at 100% 100%, rgba(118,66,226,.36) 0%, rgba(118,66,226,0) 64%),
+    radial-gradient(110% 55% at 0% 100%, rgba(18,160,148,.30) 0%, rgba(18,160,148,0) 62%),
+    linear-gradient(180deg,#0D0E16 0%,#06070A 100%);
+  --surface:rgba(44,46,56,.50);
+  --surface-soft:rgba(255,255,255,.06);
+  --surface2:rgba(118,118,128,.24);
+  --surface3:rgba(118,118,128,.36);
+  --ink2:#D0D0D6;
+  --muted:#9696A0;
+  --line:rgba(255,255,255,.08);
+  --line2:rgba(255,255,255,.16);
+  --accent:#3D9BFF; --accent-soft:rgba(61,155,255,.18); --accent-ink:#7AB8FF;
+  --icon-neutral:rgba(255,255,255,.09);
+  --icon-solid-bg:rgba(255,255,255,.10);
+
+  --glass-content:rgba(40,42,52,.48);
+  --glass-clear:rgba(56,58,70,.34);
+  --glass-lens:rgba(255,255,255,.16);
+  --glass-solid:rgba(30,31,38,.97);
+  --glass-sheet:rgba(26,27,34,.70);
+  --rim-light:rgba(255,255,255,.32);
+  --rim-fade:rgba(255,255,255,.04);
+  --rim-low:rgba(255,255,255,.14);
+  --glass-inner:inset 0 1px 1px rgba(255,255,255,.12), inset 0 -1px 1px rgba(255,255,255,.03);
+  --lens-shadow:0 2px 10px rgba(0,0,0,.35);
+
+  --shadow:0 1px 1px rgba(0,0,0,.30), 0 12px 32px rgba(0,0,0,.40);
+  --shadow-soft:0 6px 18px rgba(0,0,0,.32);
+  --shadow-lift:0 20px 48px rgba(0,0,0,.55);
+}
+
+/* ── the two materials ── */
+.vy.glass .vy-group, .vy.glass .vy-card, .vy.glass .vy-hero, .vy.glass .vy-tile,
+.vy.glass .vy-stat > div, .vy.glass .vy-fieldset, .vy.glass .vy-note,
+.vy.glass .vy-input, .vy.glass .vy-noteinput, .vy.glass .vy-selectbtn, .vy.glass .vy-pinin,
+.vy.glass .vy-searchbar, .vy.glass .vy-icongrid button:not(.on) {
+  background:var(--glass-content);
+  -webkit-backdrop-filter:var(--glass-fx); backdrop-filter:var(--glass-fx);
+}
+.vy.glass .vy-tabs-in, .vy.glass .vy-iconbtn:not(.ghost), .vy.glass .vy-chip:not(.on),
+.vy.glass .vy-btn.soft, .vy.glass .vy-btn.danger, .vy.glass .vy-seg {
+  background:var(--glass-clear);
+  -webkit-backdrop-filter:var(--glass-fx-clear); backdrop-filter:var(--glass-fx-clear);
+}
+
+/* The specular rim: a 1px gradient border, bright where the light lands top-left,
+   fading along the sides and catching again at the bottom-right edge. Drawn as a
+   masked pseudo-element so it follows any radius without a real border shifting layout. */
+.vy.glass .vy-group, .vy.glass .vy-card, .vy.glass .vy-hero, .vy.glass .vy-tile,
+.vy.glass .vy-stat > div, .vy.glass .vy-fieldset, .vy.glass .vy-note, .vy.glass .vy-searchbar,
+.vy.glass .vy-iconbtn:not(.ghost), .vy.glass .vy-chip, .vy.glass .vy-btn,
+.vy.glass .vy-dialog { position:relative; }
+/* (the tab bar, its thumbs, the add button, sheets and the toast are already positioned) */
+.vy.glass .vy-group::after, .vy.glass .vy-card::after, .vy.glass .vy-hero::after, .vy.glass .vy-tile::after,
+.vy.glass .vy-stat > div::after, .vy.glass .vy-fieldset::after, .vy.glass .vy-note::after,
+.vy.glass .vy-searchbar::after, .vy.glass .vy-tabs-in::after, .vy.glass .vy-iconbtn:not(.ghost)::after,
+.vy.glass .vy-chip::after, .vy.glass .vy-btn::after, .vy.glass .vy-seg::after, .vy.glass .vy-seg .thumb::after,
+.vy.glass .vy-tabs-in .thumb::after, .vy.glass .vy-fab::after, .vy.glass .vy-sheet::after,
+.vy.glass .vy-dialog::after, .vy.glass .vy-toast::after {
+  content:''; position:absolute; inset:0; border-radius:inherit; padding:1px; pointer-events:none; z-index:2;
+  background:linear-gradient(140deg, var(--rim-light) 0%, var(--rim-fade) 32%, var(--rim-fade) 62%, var(--rim-low) 100%);
+  -webkit-mask:linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  -webkit-mask-composite:xor; mask-composite:exclude;
+}
+.vy.glass .vy-group, .vy.glass .vy-card, .vy.glass .vy-hero, .vy.glass .vy-tile,
+.vy.glass .vy-stat > div, .vy.glass .vy-fieldset { box-shadow:var(--glass-inner), var(--shadow); }
+.vy.glass .vy-searchbar, .vy.glass .vy-note, .vy.glass .vy-input, .vy.glass .vy-selectbtn,
+.vy.glass .vy-noteinput, .vy.glass .vy-pinin { box-shadow:var(--glass-inner), var(--shadow-soft); }
+.vy.glass .vy-input:focus, .vy.glass .vy-noteinput:focus {
+  box-shadow:var(--glass-inner), var(--shadow-soft), 0 0 0 3px var(--accent-soft); }
+
+/* ── lists: the group is the glass, rows are clear so it is one pane, not a stack ── */
+.vy.glass .vy-row, .vy.glass .vy-fieldset .vy-field { background:transparent; }
+.vy.glass .vy-row:active, .vy.glass .vy-field:active { background:var(--surface-soft); }
+.vy.glass .vy-rowwrap { background:transparent; }
+/* mid-swipe the row must hide the action panel it is sliding over */
+.vy.glass .vy-rowwrap:has(.vy-rowacts) .vy-row { background:var(--glass-solid); }
+
+/* ── nav ── */
+.vy.glass .vy-iconbtn:not(.ghost) { box-shadow:var(--glass-inner), var(--shadow-soft); }
+.vy.glass .vy-iconbtn:active { background:var(--glass-lens); transform:scale(.9); }
+/* no painted fade under the header: content passes under clear chrome */
+.vy.glass .vy-fade-top::before { display:none; }
+
+/* ── tab bar: a floating capsule with a lens that slides between tabs ── */
+.vy.glass .vy-tabs::before { display:none; }
+.vy.glass .vy-tabs-in { box-shadow:var(--glass-inner), var(--shadow-lift); }
+.vy.glass .vy-tabs-in .thumb { background:var(--glass-lens);
+  box-shadow:var(--glass-inner), var(--lens-shadow); }
+
+/* the add button is tinted glass: colour behind a clear lens, not a flat disc */
+.vy.glass .vy-fab { color:#fff;
+  background:linear-gradient(180deg, rgba(255,255,255,.28) 0%, rgba(255,255,255,0) 52%), var(--accent);
+  -webkit-backdrop-filter:var(--glass-fx-clear); backdrop-filter:var(--glass-fx-clear);
+  box-shadow:inset 0 1px 1px rgba(255,255,255,.55), 0 10px 28px rgba(10,122,255,.38); }
+.vy.glass .vy-fab:active { box-shadow:inset 0 1px 1px rgba(255,255,255,.55), 0 4px 14px rgba(10,122,255,.32); }
+
+/* ── controls ── */
+.vy.glass .vy-chip:not(.on) { box-shadow:var(--glass-inner), var(--shadow-soft); }
+.vy.glass .vy-chip.on, .vy.glass .vy-btn:not(.soft):not(.danger) {
+  background:linear-gradient(180deg, rgba(255,255,255,.16) 0%, rgba(255,255,255,0) 55%), var(--ink); }
+.vy.glass .vy-btn.soft, .vy.glass .vy-btn.danger { box-shadow:var(--glass-inner), var(--shadow-soft); }
+/* on a solid ink fill a full-strength rim reads as a stray white line, so it is a gloss here */
+.vy.glass .vy-chip.on::after, .vy.glass .vy-btn:not(.soft):not(.danger)::after, .vy.glass .vy-fab::after {
+  --rim-light:rgba(255,255,255,.42); --rim-fade:rgba(255,255,255,.04); --rim-low:rgba(255,255,255,.14); }
+.vy.glass .vy-dialog-acts .vy-btn.danger { background:#D2564B; color:#fff; }
+
+.vy.glass .vy-seg { box-shadow:inset 0 1px 2px rgba(0,0,0,.06); }
+.vy.glass .vy-seg .thumb { background:var(--glass-lens);
+  box-shadow:var(--glass-inner), var(--lens-shadow); }
+
+/* the switch: green when on, and the knob turns to a clear lens while it is held */
+.vy.glass .vy-switch.on { background:var(--in); }
+.vy.glass .vy-switch i { box-shadow:0 2px 7px rgba(0,0,0,.2), inset 0 -1px 1px rgba(0,0,0,.04);
+  transition:transform var(--t-med) var(--ease-spring), width var(--t-fast) var(--ease-out),
+             background var(--t-fast) var(--ease-out), scale var(--t-fast) var(--ease-bounce); }
+.vy.glass .vy-switch:active i { background:rgba(255,255,255,.55); scale:1.18;
+  box-shadow:inset 0 1px 1px rgba(255,255,255,.9), 0 4px 12px rgba(0,0,0,.18); }
+
+.vy.glass .vy-icongrid button.on { color:var(--bg); }
+.vy.glass .vy-foot { background:transparent; }
+
+/* ── overlays: sheets float clear of the screen edges, as the system's do ── */
+.vy.glass .vy-scrim { background:rgba(10,12,20,.26); }
+.vy.glass .vy-sheet, .vy.glass .vy-dialog { background:var(--glass-sheet); border:0;
+  -webkit-backdrop-filter:blur(40px) saturate(190%); backdrop-filter:blur(40px) saturate(190%);
+  box-shadow:var(--glass-inner), 0 24px 60px rgba(0,0,0,.27); }
+.vy.glass .vy-sheet { left:8px; right:8px; bottom:8px; border-radius:34px; }
+.vy.glass .vy-sheet-b { padding-bottom:calc(14px + var(--safe-b)); }
+.vy.glass .vy-dialog { border-radius:32px; }
+.vy.glass .vy-toast { color:#fff; background:rgba(28,30,38,.66);
+  -webkit-backdrop-filter:var(--glass-fx); backdrop-filter:var(--glass-fx);
+  box-shadow:inset 0 1px 1px rgba(255,255,255,.18), 0 14px 36px rgba(0,0,0,.26); }
+.vy.glass.dark .vy-toast { background:rgba(70,72,84,.52); }
+.vy.glass .vy-toast button { color:#fff; }
+.vy.glass .vy-toast::after { --rim-light:rgba(255,255,255,.4); --rim-fade:rgba(255,255,255,.05); --rim-low:rgba(255,255,255,.16); }
+
+/* The person asked the system for less transparency: keep the look's shapes and
+   colours, but make every pane solid enough to read without the blur. */
+@media (prefers-reduced-transparency:reduce) {
+  .vy.glass { --glass-content:rgba(255,255,255,.94); --glass-clear:rgba(255,255,255,.9);
+    --glass-sheet:rgba(246,247,251,.98); --surface:rgba(255,255,255,.94); }
+  .vy.glass.dark { --glass-content:rgba(36,38,46,.96); --glass-clear:rgba(44,46,56,.94);
+    --glass-sheet:rgba(26,27,34,.98); --surface:rgba(36,38,46,.96); }
+}
 
 /* Honour the system setting: no travel, no bounce, instant state changes. */
 @media (prefers-reduced-motion:reduce) {
