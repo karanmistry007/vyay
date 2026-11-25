@@ -183,5 +183,39 @@ T2("a transfer-only day says nothing was spent", moveOnly.title === "Tuesday: �
 const one = digestMessage(daySummary(buildLedger([dayTxns[0]]), [dayTxns[0]], "2026-11-24", { catById: cat }), { currency: "INR" });
 T2("one entry is singular", one.body.startsWith("1 entry"), one.body);
 
+/* ── payment reminders: which recurring items fall on a day, and the words for them ── */
+import { recurringDue } from "./src/lib/analytics.js";
+import { dueMessage } from "./src/lib/digest.js";
+console.log("\n— payment reminders —");
+const rec = [
+  { id: "r1", name: "Rent", amount: 15000, day: 5 },
+  { id: "r2", name: "Netflix", amount: 499, day: 6, auto: true },
+  { id: "r3", name: "Gym", amount: 1200, day: 31 },
+  { id: "r4", name: "SIP", amount: 5000, day: "5" },               // a day stored as text still matches
+];
+T2("items due on their day of the month", recurringDue(rec, "2026-12-05").map((r) => r.id).join(",") === "r1,r4",
+  recurringDue(rec, "2026-12-05").map((r) => r.id).join(","));
+T2("nothing due on an empty day", recurringDue(rec, "2026-12-07").length === 0);
+T2("day 31 falls on the last day of a short month", recurringDue(rec, "2026-11-30").map((r) => r.id).join(",") === "r3",
+  recurringDue(rec, "2026-11-30").map((r) => r.id).join(","));
+T2("and of February", recurringDue(rec, "2027-02-28").map((r) => r.id).join(",") === "r3");
+T2("and only once in a long month", recurringDue(rec, "2026-12-30").length === 0 && recurringDue(rec, "2026-12-31").length === 1);
+T2("a missing list is no reminders", recurringDue(undefined, "2026-12-05").length === 0);
+
+const asItem = (r) => ({ name: r.name, amount: r.amount, auto: !!r.auto, currency: "INR" });
+const soloToday = dueMessage({ today: [asItem(rec[0])], tomorrow: [] });
+T2("one payment today is named in the title", soloToday.title === "Rent is due today", soloToday.title);
+T2("with its amount in the body", soloToday.body.includes("₹15,000.00"), soloToday.body);
+const both = dueMessage({ today: [asItem(rec[0]), asItem(rec[3])], tomorrow: [asItem(rec[1])] });
+T2("several today are counted with their total", both.title === "2 payments due today · ₹20,000.00", both.title);
+T2("tomorrow's are listed after today's", both.body.indexOf("Today:") < both.body.indexOf("Tomorrow:")
+  && both.body.includes("Netflix ₹499.00 (auto-pays)"), both.body);
+const soloTomorrow = dueMessage({ today: [], tomorrow: [asItem(rec[1])] });
+T2("only tomorrow leads with tomorrow", soloTomorrow.title === "Netflix is due tomorrow", soloTomorrow.title);
+T2("nothing due is no message", dueMessage({ today: [], tomorrow: [] }) === null);
+const hiddenDue = dueMessage({ today: [asItem(rec[0]), asItem(rec[3])], tomorrow: [asItem(rec[1])] }, { privacy: true });
+T2("hide amounts keeps payment figures off the lock screen", !/[₹\d,]+\.\d\d/.test(hiddenDue.title + hiddenDue.body),
+  hiddenDue.title + " | " + hiddenDue.body);
+
 console.log(`\n  ${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);

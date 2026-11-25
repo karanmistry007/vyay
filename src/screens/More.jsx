@@ -2,7 +2,7 @@ import React, { useEffect, useState } from "react";
 import {
   Wallet, Layers, Building2, CreditCard, Users, BookOpen, Target, PiggyBank, Repeat,
   Wand2, Database, ChevronDown, ChevronRight, Moon, Sun, EyeOff, Lock, Shield, Tag as TagIcon, Scale, Settings2,
-  RefreshCw, Check, ArrowUpCircle, Bell,
+  RefreshCw, Check, ArrowUpCircle, Bell, CalendarClock,
 } from "lucide-react";
 import { permissionState, askPermission } from "../lib/notify.js";
 import { dayBefore } from "../lib/digest.js";
@@ -55,36 +55,55 @@ export default function More({ s, nav }) {
     unsupported: "Needs the app served over https",
   }[update.state] || "Check for a newer build";
   /*
-   * The daily recap. The setting can be on while the browser still says no, so the
-   * subtitle reports both: what the user chose, and whether the phone will let it through.
+   * Notifications: the daily recap and the payment reminder. A setting can be on while
+   * the browser still says no, so each subtitle reports both what the user chose and
+   * whether the phone will let it through. Both share one permission, so the wording
+   * for a blocked or unsupported browser is shared too.
    */
   const [perm, setPerm] = useState(permissionState);
+  const permCopy = perm === "default" ? "Tap to allow notifications"
+    : perm === "denied" ? "Blocked by your browser, so it appears inside the app"
+    : perm === "unsupported" ? "Appears inside the app, as this browser can't send notifications"
+    : null;
+
   const recapOn = s.settings.dailyDigest !== false;
-  const recapCopy = !recapOn ? "Off — no recap after midnight"
-    : perm === "granted" ? "Yesterday's spend, income and transfers, after midnight"
-    : perm === "default" ? "Tap to allow notifications"
-    : perm === "denied" ? "Notifications are blocked for this site, so it shows in the app"
-    : "Shown in the app — this browser can't post notifications";
+  const recapCopy = !recapOn ? "Off · no summary at midnight"
+    : permCopy || "Yesterday's spending, income and transfers, every midnight";
 
-  const toggleRecap = async (on) => {
-    // Ask before any await: Safari only honours the request inside the tap itself.
+  const dueOn = s.settings.dueReminders !== false;
+  const recurringCount = s.state.recurring.length;
+  const dueCopy = !dueOn ? "Off · recurring payments arrive unannounced"
+    : permCopy || (recurringCount
+      ? "A heads-up the day before and on the day each payment is due"
+      : "Add a recurring payment and we'll remind you before it's due");
+
+  /*
+   * One toggle routine for both. The permission request happens before any await:
+   * Safari only honours it inside the tap itself.
+   */
+  const toggleNotice = async (key, on, { label, onCopy }) => {
     const asked = on && perm === "default" ? askPermission() : null;
-    await s.setSetting("dailyDigest", on);
-    if (!on) return toast("Daily recap is off");
-    if (!asked) return toast("Daily recap is on");
-    const granted = await asked;
-    setPerm(granted);
-    toast(granted === "granted"
-      ? "Daily recap is on. The first one arrives after midnight"
-      : "Notifications are off, so the recap will show inside the app");
+    await s.setSetting(key, on);
+    if (!on) return toast(`${label} turned off`);
+    if (!asked && perm !== "denied" && perm !== "unsupported") return toast(onCopy);
+    const granted = asked ? await asked : perm;
+    if (asked) setPerm(granted);
+    toast(granted === "granted" ? onCopy : `${label} on · notifications are off, so you'll see it inside the app`);
   };
+  const toggleRecap = (on) => toggleNotice("dailyDigest", on,
+    { label: "Daily recap", onCopy: "Daily recap on · your first summary lands at midnight" });
+  const toggleDue = (on) => toggleNotice("dueReminders", on,
+    { label: "Payment reminders", onCopy: "Payment reminders on · you'll hear a day before each one is due" });
 
-  const onRecapRow = async (e) => {
-    if (e.target.closest(".vy-switch") || !recapOn) return;
+  /* Tapping a row (not its switch) asks for permission first, then opens what the notification is about. */
+  const onNoticeRow = (on, open) => async (e) => {
+    if (e.target.closest(".vy-switch") || !on) return;
     buzz(5);
     if (perm === "default") { setPerm(await askPermission()); return; }
-    nav.push("day", { date: dayBefore(isoToday()) });
+    open();
   };
+  const onRecapRow = onNoticeRow(recapOn, () => nav.push("day", { date: dayBefore(isoToday()) }));
+  const onDueRow = onNoticeRow(dueOn, () => nav.push("recurring"));
 
   const priv = s.settings.privacy;
   const netWorth = sum(s.activeAccounts.filter((a) => a.includeNet !== false).map((a) => s.balances[a.id] || 0));
@@ -153,6 +172,20 @@ export default function More({ s, nav }) {
           <div className="vy-sec"><h3>Adding transactions</h3></div>
           <Group items={entry} />
 
+          <div className="vy-sec"><h3>Notifications</h3></div>
+          <div className="vy-group">
+            <div className="vy-row" style={{ cursor: recapOn ? "pointer" : "default" }} onClick={onRecapRow}>
+              <div className="vy-row-ic" style={{ background: tint("var(--accent)"), color: "var(--accent)" }}><Bell size={18} /></div>
+              <div className="vy-row-m"><b>Daily recap</b><span>{recapCopy}</span></div>
+              <Switch on={recapOn} label="Daily recap" onChange={toggleRecap} />
+            </div>
+            <div className="vy-row" style={{ cursor: dueOn ? "pointer" : "default" }} onClick={onDueRow}>
+              <div className="vy-row-ic" style={{ background: tint("var(--tr)"), color: "var(--tr)" }}><CalendarClock size={18} /></div>
+              <div className="vy-row-m"><b>Payment reminders</b><span>{dueCopy}</span></div>
+              <Switch on={dueOn} label="Payment reminders" onChange={toggleDue} />
+            </div>
+          </div>
+
           <div className="vy-sec"><h3>App</h3></div>
           <div className="vy-group">
             <div className="vy-row" style={{ cursor: "default" }}>
@@ -167,11 +200,6 @@ export default function More({ s, nav }) {
               <div className="vy-row-ic" style={{ background: tint("var(--muted)"), color: "var(--muted)" }}><EyeOff size={18} /></div>
               <div className="vy-row-m"><b>Hide amounts</b><span>Blur every figure on screen</span></div>
               <Switch on={priv} label="Hide amounts" onChange={(v) => s.setSetting("privacy", v)} />
-            </div>
-            <div className="vy-row" style={{ cursor: recapOn ? "pointer" : "default" }} onClick={onRecapRow}>
-              <div className="vy-row-ic" style={{ background: tint("var(--accent)"), color: "var(--accent)" }}><Bell size={18} /></div>
-              <div className="vy-row-m"><b>Daily recap</b><span>{recapCopy}</span></div>
-              <Switch on={recapOn} label="Daily recap" onChange={toggleRecap} />
             </div>
             <div className="vy-row" style={{ cursor: "default" }}>
               <div className="vy-row-ic" style={{ background: tint("var(--in)"), color: "var(--in)" }}><Scale size={18} /></div>
