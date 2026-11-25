@@ -2,14 +2,14 @@ import React, { useEffect, useState } from "react";
 import {
   Wallet, Layers, Building2, CreditCard, Users, BookOpen, Target, PiggyBank, Repeat,
   Wand2, Database, ChevronDown, ChevronRight, Moon, Sun, EyeOff, Lock, Shield, Tag as TagIcon, Scale, Settings2,
-  RefreshCw, Check, ArrowUpCircle, Bell, CalendarClock, Palette,
+  RefreshCw, Check, ArrowUpCircle, Bell, CalendarClock, Palette, Info,
 } from "lucide-react";
 import { permissionState, askPermission } from "../lib/notify.js";
 import { dayBefore } from "../lib/digest.js";
 import { LayoutGrid } from "lucide-react";
 import { Nav, Switch, Seg, useToast } from "../components/ui.jsx";
 import { checkForUpdate } from "../lib/pwa.js";
-import { APP_VERSION, APP_BUILD } from "../lib/version.js";
+import { APP_VERSION, APP_BUILD, versionLabel } from "../lib/version.js";
 import { Ic } from "../lib/icons.jsx";
 import { tint } from "../lib/color.js";
 import { fmt, buzz, sum, isoToday } from "../lib/money.js";
@@ -42,6 +42,22 @@ export default function More({ s, nav }) {
     else if (result.state === "offline") toast("No connection, so nothing to check against");
     else if (result.state === "not-registered") toast("Reload once online to enable updates");
     else toast("Updates need the app served over https");
+  };
+
+  /*
+   * A bug report is only useful if it names the build, so the version row copies exactly
+   * that. The clipboard API exists only on https, and a phone testing a LAN dev server is
+   * on plain http, so when it is missing the label is shown instead of failing silently.
+   */
+  const copyVersion = async () => {
+    buzz(5);
+    const label = versionLabel();
+    try {
+      await navigator.clipboard.writeText(label);
+      toast("Version copied — paste it into your report");
+    } catch {
+      toast(`Vyay ${APP_VERSION} · build ${APP_BUILD}`);
+    }
   };
 
   const updateCopy = {
@@ -260,7 +276,13 @@ export default function More({ s, nav }) {
             <span>All {s.state.txns.length} transactions live in this device's own database. Nothing is uploaded anywhere, and the app runs with no connection at all.</span>
           </div>
 
-          <div style={{ textAlign: "center", padding: "22px 0 0" }} className="vy-sub">Vyay {APP_VERSION} · build {APP_BUILD}</div>
+          <div className="vy-sec"><h3>About</h3></div>
+          <div className="vy-group">
+            <div className="vy-row" onClick={copyVersion}>
+              <div className="vy-row-ic neutral"><Info size={18} /></div>
+              <div className="vy-row-m"><b>Version {APP_VERSION}</b><span>Build {APP_BUILD} · tap to copy for a bug report</span></div>
+            </div>
+          </div>
         </div>
         <div className="vy-tabspace" />
       </div>
