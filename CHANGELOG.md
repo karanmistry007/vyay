@@ -7,7 +7,8 @@ out under "Versioning and releases" in `CLAUDE.md`.
 
 Write for the person using the app, not for the code: what they can now do, what stopped going
 wrong, and whether anything about their data changed. The section for a version becomes the
-body of its GitHub release, so it must exist before the tag is pushed.
+body of its GitHub release, so it must exist before the tag is pushed. The release notes open
+with the live app, https://vyay.karanmistry.in, which the release workflow adds on its own.
 
 ## [Unreleased]
 
