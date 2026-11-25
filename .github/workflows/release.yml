@@ -8,6 +8,9 @@
 # The release is created as a DRAFT. A human still has to install the artifact, reload it
 # with the network off, and restore a backup taken with the previous build; none of that can
 # be checked here. See .claude/commands/release.md for the full procedure.
+#
+# Tags are cut on main only, on the merge commit of the develop → main release pull request.
+# The notes come from that version's section of CHANGELOG.md.
 name: Release
 
 on:
@@ -64,6 +67,38 @@ jobs:
             exit 1
           fi
 
+      # main is the release line: a version is whatever main held when it was tagged. A tag
+      # on develop or a topic branch would publish code that never went through the release
+      # pull request, so the tagged commit must already be reachable from main.
+      - name: Tag is on main
+        env:
+          RAW_TAG: ${{ inputs.tag || github.ref_name }}
+        run: |
+          git fetch --quiet origin main
+          if ! git merge-base --is-ancestor "refs/tags/${RAW_TAG}" origin/main; then
+            echo "$RAW_TAG is not on main. Merge develop into main first, then tag main's merge commit."
+            exit 1
+          fi
+          echo "$RAW_TAG is on main."
+
+      # The notes are the human-written CHANGELOG section, not a commit dump: commit subjects
+      # are written for reviewers, and the release page is read by people installing the app.
+      - name: Changelog entry exists
+        env:
+          RAW_TAG: ${{ inputs.tag || github.ref_name }}
+        run: |
+          TAG="${RAW_TAG#v}"
+          awk -v v="$TAG" '
+            /^## \[/ { on = index($0, "## [" v "]") == 1; next }
+            /^\[[^]]+\]: / { on = 0 }
+            on
+          ' CHANGELOG.md > CHANGES.md
+          if ! grep -q '[^[:space:]]' CHANGES.md; then
+            echo "CHANGELOG.md has no section for [$TAG]. Write it on a branch into develop, then release again."
+            exit 1
+          fi
+          cat CHANGES.md
+
       - name: Safety net and build
         run: npm run verify:build
 
@@ -88,15 +123,15 @@ jobs:
           TAG="$RAW_TAG"
           PREVIOUS=$(git describe --tags --abbrev=0 "${TAG}^" 2>/dev/null || true)
           {
-            echo "## What shipped"
+            cat CHANGES.md
             echo
             if [ -n "$PREVIOUS" ]; then
-              git log --no-merges --pretty='- %s' "${PREVIOUS}..${TAG}"
+              echo "Full history: https://github.com/${{ github.repository }}/compare/${PREVIOUS}...${TAG}"
               echo
-              echo "Full history: \`${PREVIOUS}..${TAG}\`"
-            else
-              git log --no-merges --pretty='- %s'
             fi
+            echo "## Install and check"
+            echo
+            echo "Download \`vyay-${TAG#v}.zip\` and confirm it against the \`.sha256\` file beside it."
             echo
             echo "## Verified automatically"
             echo

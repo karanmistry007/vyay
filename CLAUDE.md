@@ -53,6 +53,56 @@ is yours. The allowance lives in `scripts/baseline.mjs`, which the hook and CI b
 - Run `/verify` before opening the PR, and quote the result in the description.
 - Never commit straight to `develop` or `main`, and never force-push a branch somebody else
   may have pulled.
+- **Merging and approving are the maintainer's.** An assistant opens pull requests and may
+  push a tag only when told to; it never merges, approves or publishes a release.
+
+## Versioning and releases
+
+Vyay went to production at **1.0.0** on 2026-11-25. Everything before that was a 0.x preview.
+
+**Semantic versioning, read for a local-first app.** No API exists, so the contract is the
+user's data and their install:
+
+| Bump | When | Example |
+|---|---|---|
+| **major** `2.0.0` | an install or a backup cannot carry forward without the user doing something | a restore that refuses older backups; dropping a stored field |
+| **minor** `1.1.0` | a feature a user can see, or any `SCHEMA_VERSION` bump | a new report; a new field on transactions |
+| **patch** `1.0.1` | fixes and polish only, with no new behaviour and no schema change | a wrong total; a misaligned icon |
+
+Migrations are additive (invariant 5), so a major bump should be rare and deliberate.
+Pre-release builds, if ever needed, are `1.1.0-rc.1`; the app never ships a "beta" label.
+
+**The version lives in three places, which must agree:** `version` in `package.json` (and the
+lockfile, via `npm version <x.y.z> --no-git-tag-version`), `APP_VERSION` in
+`src/lib/version.js`, and a `## [x.y.z] — YYYY-MM-DD` section in `CHANGELOG.md`.
+`check:invariants` fails on any mismatch. The build id is stamped by `vite.config.js` and
+needs no edit.
+
+**`CHANGELOG.md` is written for users.** Each pull request that changes behaviour adds a line
+under `## [Unreleased]`. Cutting a version renames that heading to the version and date and
+opens a fresh, empty `[Unreleased]`. That section becomes the GitHub release notes word for
+word, so it says what changed for the person using the app, not which files moved.
+
+**Cutting a release** — `/release <x.y.z>` walks through it:
+
+1. On a `karan/release-x-y-z` branch from `develop`: bump the three places, move
+   `[Unreleased]` into the new section, run `npm run verify:build`. Pull request into `develop`.
+2. Once that is merged, open the **release pull request from `develop` into `main`**, titled
+   `Release vX.Y.Z`, with the changelog section as its description. This is the only pull
+   request that ever targets `main`. Merge it with a merge commit.
+3. **Tag on `main`, never anywhere else**, on that merge commit:
+   `git switch main && git pull && git tag -a vX.Y.Z -m "Vyay X.Y.Z" && git push origin vX.Y.Z`.
+   Tags are annotated, `v`-prefixed and never moved or reused. A bad release is fixed by
+   the next patch, not by re-tagging.
+4. The tag runs `release.yml`. It refuses a tag that is not on `main`, or whose version
+   disagrees with `package.json`, `APP_VERSION` or the changelog. It then builds, zips `dist/`
+   with a checksum and opens a **draft** GitHub release with the changelog section as notes.
+5. A human installs the zip, reloads with the network off, and restores a backup from the
+   previous version. Then they publish the draft and deploy that same `dist/`.
+6. Merge `main` back into `develop` if anything landed on `main` alone. Normally nothing does.
+
+**A hotfix** follows the same path with a patch bump. There is no shortcut to `main`, because
+CI refuses any pull request into it from a branch other than `develop`.
 
 ## Baseline (verified 2026-11-24)
 
@@ -64,9 +114,6 @@ is yours. The allowance lives in `scripts/baseline.mjs`, which the hook and CI b
   assumption, not in the app. Do not "fix" it by editing the assertion to match this month —
   either make the range honour its anchor, or inject a clock. If you changed nothing in
   analytics, 86/1 is the expected baseline, not your regression.
-- `README.md` mentions `test-theme.mjs`; that file does not exist.
-- `README.md`'s migration table stops at schema 4; `SCHEMA_VERSION` is actually 6. The prose
-  above the table is current, the table is stale.
 
 ## Architecture
 
@@ -131,8 +178,9 @@ Each of these exists because breaking it caused a real bug. Do not relax one sil
 11. **`public/sw.js` must keep its `__PRECACHE__` and `__VERSION__` placeholders.**
     `scripts/build-sw.mjs` exits 1 without them. The worker never calls `skipWaiting()` on its
     own — a new build must not swap itself in under someone who is mid-entry.
-12. **`APP_VERSION` in `src/lib/version.js` tracks `version` in `package.json`.** Both are 0.8.1.
-    The More screen quotes the version and the build id, which is what bug reports cite.
+12. **`APP_VERSION` in `src/lib/version.js` tracks `version` in `package.json`, and
+    `CHANGELOG.md` has a section for it.** All three say 1.0.0. More → About shows the version
+    and the build id, which is what bug reports cite. See "Versioning and releases" below.
 
 ## Conventions
 
@@ -210,8 +258,9 @@ The dev-tool advisories are deliberately non-blocking: the open Vite and esbuild
 affect the dev server and the build host, not the static files a user installs, and clearing
 them needs a major Vite upgrade. What ships has no advisories, and that gate does block.
 
-`release.yml` runs on a `v*` tag. It refuses to publish unless the tag, `package.json` and
-`APP_VERSION` all agree, then builds, packages `dist/` with a checksum and opens a **draft**
+`release.yml` runs on a `v*` tag. It refuses to publish unless the tag is on `main` and the
+tag, `package.json`, `APP_VERSION` and a `CHANGELOG.md` section all agree. It then builds,
+packages `dist/` with a checksum and opens a **draft**
 release — because installing the PWA, reloading with the network off and restoring a backup
 from the previous build are still human steps. `codeql.yml` scans for the injection-shaped
 bugs that arithmetic tests cannot see; it needs code scanning enabled on the repository.

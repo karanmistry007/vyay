@@ -283,6 +283,19 @@ if (!appVersion) {
   );
 }
 
+/*
+ * The release workflow publishes CHANGELOG.md's section for the tagged version as the
+ * release notes, and refuses the tag without one. Catching a missing section here means
+ * the version bump's own pull request fails, not the release run after main has merged.
+ */
+const changelog = existsSync(join(ROOT, "CHANGELOG.md")) ? read("CHANGELOG.md") : "";
+if (!changelog.includes(`## [${pkg.version}]`)) {
+  problems.push(
+    `[version] CHANGELOG.md has no "## [${pkg.version}]" section. ` +
+    "Every version gets one; it becomes the GitHub release notes."
+  );
+}
+
 /* ----------------------------------------------------------------------- *
  * Bundle discipline — four runtime dependencies.
  *

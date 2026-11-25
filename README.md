@@ -1,6 +1,6 @@
 # Vyay
 
-Version 0.8.1. A local-first personal money tracker: React + Vite, installable as a PWA,
+Version 1.0.0 — see [CHANGELOG.md](CHANGELOG.md) for what changed in each release. A local-first personal money tracker: React + Vite, installable as a PWA,
 every record stored in the browser's own database.
 
 A personal money tracker that runs entirely on your own device. React + Vite, installable as a
@@ -182,7 +182,7 @@ balances. Theme and layout changes touch no data at all.
 The app paints itself, but the page behind it does not. With the app set to dark while the system
 was light, the strip under the tab bar and the overscroll area kept the light page colour and read
 as a white band. `html`, `body`, `color-scheme` and the status-bar colour now all follow the
-in-app theme, and `test-theme.mjs` checks each of them in both directions.
+in-app theme.
 
 ## Fully offline
 
@@ -289,6 +289,8 @@ then writes.
 | 2 | `peopleEntries` — hand-recorded outstanding amounts |
 | 3 | `tags` on transactions; `quick` and `order` on categories |
 | 4 | `payer`, `mySettled` and `includeMe` on transactions |
+| 5 | `settles` on settlement transactions; `clearedBy` on the share a settlement cleared |
+| 6 | `settles` carries the person, the direction and the exact bills it clears |
 
 ## Backup and export
 
