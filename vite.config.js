@@ -48,8 +48,8 @@ const contentSecurityPolicy = () => ({
  * Build only, because development React would warn about the missing keys on every render.
  *
  * Narrow on purpose: lucide's per-icon modules only, and only a string key closing an attribute
- * object. If a lucide upgrade changes that shape, nothing is stripped and the build says so,
- * and check-size reports the budget it gives back, rather than the build silently changing.
+ * object. If a lucide upgrade changes that shape, nothing is stripped and the build warns;
+ * the bundle then grows back by about 2 kB, which check-size will catch against the ceiling.
  */
 const LUCIDE_ICON = /[\\/]lucide-react[\\/]dist[\\/]esm[\\/]icons[\\/][^\\/]+\.mjs$/;
 const lucideIconKeys = () => {
