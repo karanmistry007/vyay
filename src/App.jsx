@@ -20,6 +20,8 @@ import DataManager from "./screens/DataManager.jsx";
 import EntryDefaults from "./screens/EntryDefaults.jsx";
 import SettlementRepair from "./screens/SettlementRepair.jsx";
 import TxnList from "./screens/TxnList.jsx";
+import DayReview from "./screens/DayReview.jsx";
+import { useDailyRecap } from "./lib/useDailyRecap.js";
 import { AccountDetail, CategoryDetail, Settle, Alerts, LockSetup, LockScreen } from "./screens/Misc.jsx";
 import PersonDetail from "./screens/PersonDetail.jsx";
 import {
@@ -159,6 +161,17 @@ function Shell() {
     };
   }, [toast]);
 
+  /* The daily recap: posted after midnight, and a tap on it lands on the day it describes. */
+  // A second tap on the same recap must not stack the same day twice behind the back button.
+  const stackRef = useRef(stack);
+  stackRef.current = stack;
+  const openDay = useCallback((date) => {
+    const current = stackRef.current[stackRef.current.length - 1];
+    if (current && current.screen === "day" && current.params.date === date) return;
+    nav.push("day", { date });
+  }, [nav]);
+  useDailyRecap(s, { openDay, toast });
+
   const deleteTxn = useCallback(async (t) => {
     await s.remove("txns", t.id);
     buzz(14);
@@ -191,7 +204,8 @@ function Shell() {
     const p = top.params;
     if (MASTERS[top.screen]) return <Master cfg={MASTERS[top.screen]} s={s} nav={nav} />;
     switch (top.screen) {
-      case "add": return <Entry s={s} nav={nav} initialType={p.type} onDone={nav.pop} />;
+      case "add": return <Entry s={s} nav={nav} initialType={p.type} initialDate={p.date} onDone={nav.pop} />;
+      case "day": return <DayReview s={s} nav={nav} date={p.date} />;
       case "edit": return <Entry s={s} nav={nav} editId={p.id} onDone={nav.pop} />;
       case "txn": return <TxnDetail s={s} nav={nav} id={p.id} onDelete={deleteTxn} />;
       case "account": return <AccountDetail s={s} nav={nav} id={p.id} />;

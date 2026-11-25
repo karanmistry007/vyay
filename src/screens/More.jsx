@@ -2,15 +2,17 @@ import React, { useEffect, useState } from "react";
 import {
   Wallet, Layers, Building2, CreditCard, Users, BookOpen, Target, PiggyBank, Repeat,
   Wand2, Database, ChevronDown, ChevronRight, Moon, Sun, EyeOff, Lock, Shield, Tag as TagIcon, Scale, Settings2,
-  RefreshCw, Check, ArrowUpCircle,
+  RefreshCw, Check, ArrowUpCircle, Bell,
 } from "lucide-react";
+import { permissionState, askPermission } from "../lib/notify.js";
+import { dayBefore } from "../lib/digest.js";
 import { LayoutGrid } from "lucide-react";
 import { Nav, Switch, useToast } from "../components/ui.jsx";
 import { checkForUpdate } from "../lib/pwa.js";
 import { APP_VERSION, APP_BUILD } from "../lib/version.js";
 import { Ic } from "../lib/icons.jsx";
 import { tint } from "../lib/color.js";
-import { fmt, buzz, sum } from "../lib/money.js";
+import { fmt, buzz, sum, isoToday } from "../lib/money.js";
 
 export default function More({ s, nav }) {
   const toast = useToast();
@@ -52,6 +54,38 @@ export default function More({ s, nav }) {
     "not-registered": "Reload once while online to enable updates",
     unsupported: "Needs the app served over https",
   }[update.state] || "Check for a newer build";
+  /*
+   * The daily recap. The setting can be on while the browser still says no, so the
+   * subtitle reports both: what the user chose, and whether the phone will let it through.
+   */
+  const [perm, setPerm] = useState(permissionState);
+  const recapOn = s.settings.dailyDigest !== false;
+  const recapCopy = !recapOn ? "Off — no recap after midnight"
+    : perm === "granted" ? "Yesterday's spend, income and transfers, after midnight"
+    : perm === "default" ? "Tap to allow notifications"
+    : perm === "denied" ? "Notifications are blocked for this site, so it shows in the app"
+    : "Shown in the app — this browser can't post notifications";
+
+  const toggleRecap = async (on) => {
+    // Ask before any await: Safari only honours the request inside the tap itself.
+    const asked = on && perm === "default" ? askPermission() : null;
+    await s.setSetting("dailyDigest", on);
+    if (!on) return toast("Daily recap is off");
+    if (!asked) return toast("Daily recap is on");
+    const granted = await asked;
+    setPerm(granted);
+    toast(granted === "granted"
+      ? "Daily recap is on. The first one arrives after midnight"
+      : "Notifications are off, so the recap will show inside the app");
+  };
+
+  const onRecapRow = async (e) => {
+    if (e.target.closest(".vy-switch") || !recapOn) return;
+    buzz(5);
+    if (perm === "default") { setPerm(await askPermission()); return; }
+    nav.push("day", { date: dayBefore(isoToday()) });
+  };
+
   const priv = s.settings.privacy;
   const netWorth = sum(s.activeAccounts.filter((a) => a.includeNet !== false).map((a) => s.balances[a.id] || 0));
 
@@ -133,6 +167,11 @@ export default function More({ s, nav }) {
               <div className="vy-row-ic" style={{ background: tint("var(--muted)"), color: "var(--muted)" }}><EyeOff size={18} /></div>
               <div className="vy-row-m"><b>Hide amounts</b><span>Blur every figure on screen</span></div>
               <Switch on={priv} label="Hide amounts" onChange={(v) => s.setSetting("privacy", v)} />
+            </div>
+            <div className="vy-row" style={{ cursor: recapOn ? "pointer" : "default" }} onClick={onRecapRow}>
+              <div className="vy-row-ic" style={{ background: tint("var(--accent)"), color: "var(--accent)" }}><Bell size={18} /></div>
+              <div className="vy-row-m"><b>Daily recap</b><span>{recapCopy}</span></div>
+              <Switch on={recapOn} label="Daily recap" onChange={toggleRecap} />
             </div>
             <div className="vy-row" style={{ cursor: "default" }}>
               <div className="vy-row-ic" style={{ background: tint("var(--in)"), color: "var(--in)" }}><Scale size={18} /></div>

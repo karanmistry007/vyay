@@ -108,6 +108,39 @@ Nothing swaps itself in mid-use. A build that downloads in the background while 
 surfaces the same way rather than reloading under you. The version and build id sit at the foot of
 the More screen, which is what to quote when reporting a problem.
 
+## The daily recap
+
+Just after midnight, Vyay posts a notification about the day that just ended. The title gives
+the figure that matters most and the body gives the rest:
+
+> **Tuesday: ₹1,240.00 spent**
+> 5 entries · ₹50,000.00 in · ₹2,000.00 moved · biggest spend Food, ₹820.00. Tap to review your day.
+
+A day with nothing on it gets a nudge instead: **"Nothing logged for Tuesday — Forgot a few? Add
+them now while the details are still fresh."** If the active book was empty but another book had
+entries, the recap says so instead of nudging. With **Hide amounts** or **App lock** on, the recap shows no figures
+at all, because a notification appears on a locked phone. Tapping it opens that day, with the
+totals, the entries, and an **Add** button with the date already set.
+
+It is on by default. Switch it off under **More → App → Daily recap**. That row also shows whether
+the browser allows notifications, and when they are allowed, tapping it opens yesterday's recap.
+
+There is no push server, because the app makes no network requests. The recap is a local
+notification, shown by the service worker, and it is delivered in three ways:
+
+- **App open across midnight**: a timer posts it as the date changes.
+- **App opened later**: it is posted when the app opens or comes back to the foreground, at most
+  once per day.
+- **App closed**: on an installed app in a Chromium browser, Periodic Background Sync wakes the
+  worker. The browser decides when, usually a few times a day, so the recap can arrive later
+  than midnight.
+
+The worker never calculates anything. When the data changes, the page writes the finished
+messages for yesterday and today to a small Cache Storage entry (`vyay-digest`), and the worker
+only reads them. If notifications are blocked or unsupported, the recap shows in the app as a
+toast instead. The first recap is for the day you created your first book, so a new install never
+gets a nudge about a day before you had the app.
+
 ## Upgrading from an earlier build
 
 Safe to deploy over an existing install. Nothing is renamed or dropped.
@@ -406,6 +439,9 @@ src/
     ledger.js         ledger engine and aggregations
     money.js          currency formatting (Indian and Western grouping), dates
     exporter.js       JSON / CSV export, backup validation
+    digest.js         the daily recap's wording, pure and tested
+    notify.js         notification permission, the recap record the worker reads
+    useDailyRecap.js  when the recap is posted, and where a tap on it lands
     icons.jsx         icon registry and palette
     presets.js        optional starter master data
   components/
@@ -414,7 +450,7 @@ src/
     TxnRow.jsx
   screens/
     Onboarding, Home, Txns, Entry, TxnDetail, Reports, More,
-    Master + masterConfigs, DataManager, Misc (account, category, settle, alerts, lock)
+    Master + masterConfigs, DataManager, DayReview, Misc (account, category, settle, alerts, lock)
 ```
 
 No chart library and no component library. The whole bundle is React, react-dom, lucide-react and
@@ -425,6 +461,8 @@ currency renders in the same family as the digits beside it.
 
 ## Known gaps
 
-Deliberately left out until the backend exists: statement import, receipt capture and OCR, push
-notifications, multi-user sharing, and recurring transactions posting themselves. Recurring items
+Deliberately left out until the backend exists: statement import, receipt capture and OCR,
+server-sent push notifications (the daily recap is local, so it cannot arrive at exactly midnight
+with the app closed on browsers without Periodic Background Sync), multi-user sharing, and recurring
+transactions posting themselves. Recurring items
 are reminders and forecasts only — nothing writes to the ledger without you.
