@@ -3,7 +3,7 @@
 **Live at [vyay.karanmistry.in](https://vyay.karanmistry.in).** Open it on a phone and add it to
 the home screen; your records stay on that device and never reach the site.
 
-Version 1.0.0 — see [CHANGELOG.md](CHANGELOG.md) for what changed in each release. A local-first personal money tracker: React + Vite, installable as a PWA,
+Version 1.0.1 — see [CHANGELOG.md](CHANGELOG.md) for what changed in each release. A local-first personal money tracker: React + Vite, installable as a PWA,
 every record stored in the browser's own database.
 
 A personal money tracker that runs entirely on your own device. React + Vite, installable as a
