@@ -2,6 +2,10 @@
 
 <!-- The reasoning, not the file list. What was wrong, or what this makes possible. -->
 
+## Changelog
+
+- [ ] A user-visible change has a line under `## [Unreleased]` in `CHANGELOG.md` (or: nothing a user would notice)
+
 ## Verification
 
 Paste the `npm run verify` table. The known analytics baseline failure is expected; anything
