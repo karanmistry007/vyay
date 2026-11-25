@@ -59,9 +59,11 @@ export function useDailyRecap(s, { openDay, toast }) {
     });
   }, [ready, enabled, since, compose]);
 
+  /* The payment reminder shares this background wake-up, so keep it while either one is on. */
+  const wanted = enabled || s.settings.dueReminders !== false;
   useEffect(() => {
-    if (ready) scheduleBackgroundRecap(enabled);
-  }, [ready, enabled]);
+    if (ready) scheduleBackgroundRecap(wanted);
+  }, [ready, wanted]);
 
   /*
    * Deliver at most once per day. The guard ref matters: opening the app fires the

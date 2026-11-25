@@ -5,7 +5,7 @@
  * like any other figure. A notification is read on a lock screen in two seconds, so
  * the title carries the one number that matters and the body carries the rest.
  */
-import { fmt, iso, parseISO, MON } from "./money.js";
+import { fmt, iso, parseISO, MON, round2 } from "./money.js";
 
 const WEEKDAYS = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
 
@@ -82,4 +82,39 @@ export function digestMessage(day, { currency = "INR", privacy = false, elsewher
   if (!day.spent && !day.earned && day.moved > 0) parts.push("no spending recorded");
 
   return { kind: "summary", title, body: `${parts.join(" · ")}. Tap to review your day.` };
+}
+
+/**
+ * Title and body for the payment reminder, or null when nothing is due.
+ *
+ * `today` and `tomorrow` are lists of { name, amount, currency, auto }. Each item carries
+ * its own currency because the reminder covers every book, and two books can keep
+ * different currencies. Today leads, because a payment due now matters more than one
+ * due tomorrow. Auto-paid items are still listed: the money leaves either way, and the
+ * reminder is the prompt to log it.
+ *
+ * With Hide amounts or App lock on, only names appear, as with the recap.
+ */
+export function dueMessage({ today = [], tomorrow = [] }, { privacy = false } = {}) {
+  if (!today.length && !tomorrow.length) return null;
+  const money = (r) => fmt(r.amount, { currency: r.currency || "INR" });
+  const line = (r) => `${r.name}${privacy ? "" : ` ${money(r)}`}${r.auto ? " (auto-pays)" : ""}`;
+  const list = (items) => items.map(line).join(", ");
+
+  const lead = today.length ? today : tomorrow;
+  const when = today.length ? "today" : "tomorrow";
+  let title;
+  if (lead.length === 1) title = `${lead[0].name} is due ${when}`;
+  else {
+    // Only add a total when every item shares a currency; ₹ plus $ is not a number.
+    const sameCurrency = lead.every((r) => (r.currency || "INR") === (lead[0].currency || "INR"));
+    const total = sameCurrency && !privacy ? ` · ${fmt(round2(lead.reduce((a, r) => a + (Number(r.amount) || 0), 0)), { currency: lead[0].currency || "INR" })}` : "";
+    title = `${lead.length} payments due ${when}${total}`;
+  }
+
+  const parts = [];
+  if (today.length) parts.push(`Today: ${list(today)}.`);
+  if (tomorrow.length) parts.push(`Tomorrow: ${list(tomorrow)}.`);
+  parts.push("Tap to see your recurring payments.");
+  return { title, body: parts.join(" ") };
 }

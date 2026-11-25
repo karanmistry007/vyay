@@ -14,12 +14,20 @@
  * the worker out of the records, which only store.jsx may touch.
  */
 
-/* public/sw.js reads these same three names; change them together or the worker goes quiet. */
+/* public/sw.js reads these same names; change them together or the worker goes quiet. */
 export const RECAP_CACHE = "vyay-digest";
 const RECAP_KEY = "__vyay-digest.json";
 const SYNC_TAG = "vyay-daily-recap";
+/*
+ * The payment reminder keeps its own record and tag in the same cache. A separate key
+ * matters: both records are read, merged and written back, and two hooks doing that to
+ * one entry at the same moment would each drop the other's half. A separate tag lets
+ * the reminder sit beside the recap instead of replacing it.
+ */
+const DUES_KEY = "__vyay-dues.json";
+const DUES_TAG = "vyay-payment-due";
 
-const LOCAL_KEY = "vyay:digest";
+const LOCAL_KEYS = { [RECAP_KEY]: "vyay:digest", [DUES_KEY]: "vyay:dues" };
 const DAY = 24 * 60 * 60 * 1000;
 
 const hasCaches = () => typeof caches !== "undefined" && typeof window !== "undefined" && window.isSecureContext;
@@ -48,27 +56,28 @@ export async function askPermission() {
  * last resort, as in db.js. Without it the marker never stuck, and the recap toast came
  * back every time the tab was refocused instead of once a day.
  */
-let memory = {};
+const memory = {};
 
-async function readRecord() {
+async function readRecord(key = RECAP_KEY) {
+  const held = memory[key] || {};
   try {
     if (hasCaches()) {
-      const hit = await (await caches.open(RECAP_CACHE)).match(RECAP_KEY);
-      return hit ? await hit.json() : memory;
+      const hit = await (await caches.open(RECAP_CACHE)).match(key);
+      return hit ? await hit.json() : held;
     }
-    return JSON.parse(localStorage.getItem(LOCAL_KEY) || "null") || memory;
-  } catch (e) { return memory; }
+    return JSON.parse(localStorage.getItem(LOCAL_KEYS[key]) || "null") || held;
+  } catch (e) { return held; }
 }
 
-async function writeRecord(patch) {
-  const next = { ...(await readRecord()), ...patch };
-  memory = next;
+async function writeRecord(patch, key = RECAP_KEY) {
+  const next = { ...(await readRecord(key)), ...patch };
+  memory[key] = next;
   try {
     if (hasCaches()) {
       const body = new Response(JSON.stringify(next), { headers: { "Content-Type": "application/json" } });
-      await (await caches.open(RECAP_CACHE)).put(RECAP_KEY, body);
+      await (await caches.open(RECAP_CACHE)).put(key, body);
     } else {
-      localStorage.setItem(LOCAL_KEY, JSON.stringify(next));
+      localStorage.setItem(LOCAL_KEYS[key], JSON.stringify(next));
     }
   } catch (e) { /* kept in memory only: at worst it repeats once per session */ }
   return next;
@@ -86,23 +95,35 @@ export const publishRecap = ({ enabled, since, days, fallback }) =>
 export const lastSent = async () => (await readRecord()).sent || "";
 export const markSent = (date) => writeRecord({ sent: date });
 
-/** Post the notification. False means it could not be shown and the caller should say it in the app. */
-export async function showRecap({ title, body, date }) {
+/**
+ * The payment reminder's copy of the same arrangement. `days` maps a date to its
+ * { title, body }, published a week ahead so a closed app still has the words; a date
+ * with nothing due is simply absent, and the worker stays quiet for it.
+ */
+export const publishDues = ({ enabled, days }) => writeRecord({ enabled, days }, DUES_KEY);
+export const lastDueSent = async () => (await readRecord(DUES_KEY)).sent || "";
+export const markDueSent = (date) => writeRecord({ sent: date }, DUES_KEY);
+
+async function show(title, options) {
   if (permissionState() !== "granted") return false;
   try {
     const registration = await navigator.serviceWorker.getRegistration();
     if (!registration) return false;
     await registration.showNotification(title, {
-      body,
-      // One recap at a time: a new one replaces yesterday's rather than stacking up.
-      tag: SYNC_TAG,
       icon: new URL("icon-192.png", document.baseURI).href,
       badge: new URL("icon-192.png", document.baseURI).href,
-      data: { date },
+      ...options,
     });
     return true;
   } catch (e) { return false; }
 }
+
+/** Post the notification. False means it could not be shown and the caller should say it in the app. */
+// One recap at a time: a new one replaces yesterday's rather than stacking up.
+export const showRecap = ({ title, body, date }) => show(title, { body, tag: SYNC_TAG, data: { date } });
+
+/** The payment reminder. A tap opens the recurring list rather than a day. */
+export const showDues = ({ title, body }) => show(title, { body, tag: DUES_TAG, data: { open: "recurring" } });
 
 /**
  * Ask to be woken roughly twice a day with the app closed. The browser decides the

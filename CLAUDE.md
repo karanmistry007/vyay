@@ -56,12 +56,12 @@ is yours. The allowance lives in `scripts/baseline.mjs`, which the hook and CI b
 ## Baseline (verified 2026-11-24)
 
 - `check-imports`, `test-format` (20 passed), `test-planner` (27 passed) pass clean.
-- `test-analytics` is **73 passed, 1 failed**. The failure is `a short history charts month by
+- `test-analytics` is **86 passed, 1 failed**. The failure is `a short history charts month by
   month`: `buildRange("all", ...)` ends the range at the real `today`, not at the anchor the test
   passes, so the expected bucket count drifts by one every month. That is a defect in the test's
   assumption, not in the app. Do not "fix" it by editing the assertion to match this month —
   either make the range honour its anchor, or inject a clock. If you changed nothing in
-  analytics, 73/1 is the expected baseline, not your regression.
+  analytics, 86/1 is the expected baseline, not your regression.
 - `README.md` mentions `test-theme.mjs`; that file does not exist.
 - `README.md`'s migration table stops at schema 4; `SCHEMA_VERSION` is actually 6. The prose
   above the table is current, the table is stale.

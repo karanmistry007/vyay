@@ -122,7 +122,7 @@ entries, the recap says so instead of nudging. With **Hide amounts** or **App lo
 at all, because a notification appears on a locked phone. Tapping it opens that day, with the
 totals, the entries, and an **Add** button with the date already set.
 
-It is on by default. Switch it off under **More → App → Daily recap**. That row also shows whether
+It is on by default. Switch it off under **More → Notifications → Daily recap**. That row also shows whether
 the browser allows notifications, and when they are allowed, tapping it opens yesterday's recap.
 
 There is no push server, because the app makes no network requests. The recap is a local
@@ -140,6 +140,26 @@ messages for yesterday and today to a small Cache Storage entry (`vyay-digest`),
 only reads them. If notifications are blocked or unsupported, the recap shows in the app as a
 toast instead. The first recap is for the day you created your first book, so a new install never
 gets a nudge about a day before you had the app.
+
+## Payment reminders
+
+Just after midnight, Vyay also posts a reminder for the recurring payments due that day and the
+next, so each one is announced the day before and again on the day:
+
+> **Rent is due today**
+> Today: Rent ₹15,000.00. Tomorrow: Netflix ₹499.00 (auto-pays). Tap to see your recurring payments.
+
+Several on one day are counted and totalled in the title (**2 payments due today · ₹20,000.00**).
+A payment set for the 31st falls on the last day of a shorter month rather than skipping it.
+Auto-paid items are still listed, because the money leaves either way and the reminder is the cue
+to log it. The reminder covers every book, not only the open one, and with **Hide amounts** or
+**App lock** on it names the payments without their amounts. Tapping it opens the recurring list.
+
+It sits beside the recap rather than replacing it, and is delivered the same three ways: the
+midnight timer, opening the app, and Periodic Background Sync. The page publishes a week of
+messages ahead to its own Cache Storage entry, so a closed app still has the words. It is on by
+default; switch it off under **More → Notifications → Payment reminders**. When notifications are
+blocked, it appears in the app as a toast once the recap's toast has gone.
 
 ## Upgrading from an earlier build
 
@@ -442,6 +462,7 @@ src/
     digest.js         the daily recap's wording, pure and tested
     notify.js         notification permission, the recap record the worker reads
     useDailyRecap.js  when the recap is posted, and where a tap on it lands
+    useDueReminders.js  the payment reminder for recurring items due today and tomorrow
     icons.jsx         icon registry and palette
     presets.js        optional starter master data
   components/

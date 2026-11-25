@@ -22,6 +22,7 @@ import SettlementRepair from "./screens/SettlementRepair.jsx";
 import TxnList from "./screens/TxnList.jsx";
 import DayReview from "./screens/DayReview.jsx";
 import { useDailyRecap } from "./lib/useDailyRecap.js";
+import { useDueReminders } from "./lib/useDueReminders.js";
 import { AccountDetail, CategoryDetail, Settle, Alerts, LockSetup, LockScreen } from "./screens/Misc.jsx";
 import PersonDetail from "./screens/PersonDetail.jsx";
 import {
@@ -171,6 +172,14 @@ function Shell() {
     nav.push("day", { date });
   }, [nav]);
   useDailyRecap(s, { openDay, toast });
+
+  /* The payment reminder: posted after midnight, and a tap on it opens the recurring list. */
+  const openScreen = useCallback((screen) => {
+    const current = stackRef.current[stackRef.current.length - 1];
+    if (current && current.screen === screen) return;
+    nav.push(screen);
+  }, [nav]);
+  useDueReminders(s, { openScreen, toast });
 
   const deleteTxn = useCallback(async (t) => {
     await s.remove("txns", t.id);
