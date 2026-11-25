@@ -19,7 +19,7 @@ IndexedDB. Read `README.md` for the product behaviour; this file is how to work 
 | The whole safety net | `npm run verify` | the five scripts above, judged against the known baseline |
 | …and the build with it | `npm run verify:build` | adds `npm run build` and checks the worker was rewritten |
 | Invariants | `npm run check:invariants` | the rules below that a machine can check; needs no `npm install` |
-| Bundle budget | `npm run check:size` | gzipped code payload against its ceiling; needs a build first |
+| Bundle budget | `npm run check:size` | gzipped startup code (125 kB) and on-demand chunks (20 kB), each against its own ceiling; needs a build first |
 
 There is no test runner, no linter and no typechecker. The five scripts above are the whole
 safety net, so they are not optional either. Each exits non-zero on failure.
