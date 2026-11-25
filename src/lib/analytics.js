@@ -169,6 +169,50 @@ export function summarise(ledger, txns, range) {
   };
 }
 
+/**
+ * One calendar day, for the recap sent after midnight.
+ *
+ * Spend and income come from the ledger, so a split bill counts only your share and
+ * a settlement counts nothing, exactly as the reports do. Transfers are reported as
+ * money moved rather than spent: calling a top-up of your own wallet "spending" is
+ * the kind of number that makes people stop trusting the recap.
+ */
+export function daySummary(ledger, txns, date, lookup = {}) {
+  const onDay = txns.filter((t) => t.date === date);
+  const byCat = {};
+  spendRows(ledger, date, date).forEach((r) => { byCat[r.cat || "_none"] = (byCat[r.cat || "_none"] || 0) - r.amount; });
+  // On a tie a named category wins over "Uncategorised", rather than whichever row came first.
+  const [topKey, topValue] = Object.entries(byCat)
+    .sort((a, b) => b[1] - a[1] || (a[0] === "_none") - (b[0] === "_none"))[0] || [];
+  const topCat = topKey && lookup.catById ? lookup.catById[topKey] : null;
+
+  return {
+    date,
+    entries: onDay.length,
+    spent: spentBetween(ledger, date, date),
+    earned: earnedBetween(ledger, date, date),
+    moved: round2(sum(onDay.filter((t) => t.type === "Transfer").map((t) => Number(t.amount) || 0))),
+    top: topKey ? { key: topKey, name: topCat ? topCat.name : "Uncategorised", amount: round2(topValue) } : null,
+  };
+}
+
+/**
+ * The recurring items that fall on `date`, for the payment reminder.
+ *
+ * A recurring item stores only a day of the month, so a day past the end of a short
+ * month is moved to its last day: rent set for the 31st is due on 30 November and
+ * 28 February, rather than silently skipping those months.
+ */
+export function recurringDue(recurring, date) {
+  const dayNo = Number(date.slice(8, 10));
+  const last = daysInMonth(date.slice(0, 7));
+  return (recurring || []).filter((r) => {
+    const d = Math.trunc(Number(r.day));
+    if (!(d >= 1)) return false;
+    return Math.min(d, last) === dayNo;
+  });
+}
+
 /* ── breakdowns ──────────────────────────────────────────────────────────── */
 
 /**

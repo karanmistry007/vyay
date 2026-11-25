@@ -20,6 +20,9 @@ import DataManager from "./screens/DataManager.jsx";
 import EntryDefaults from "./screens/EntryDefaults.jsx";
 import SettlementRepair from "./screens/SettlementRepair.jsx";
 import TxnList from "./screens/TxnList.jsx";
+import DayReview from "./screens/DayReview.jsx";
+import { useDailyRecap } from "./lib/useDailyRecap.js";
+import { useDueReminders } from "./lib/useDueReminders.js";
 import { AccountDetail, CategoryDetail, Settle, Alerts, LockSetup, LockScreen } from "./screens/Misc.jsx";
 import PersonDetail from "./screens/PersonDetail.jsx";
 import {
@@ -159,6 +162,25 @@ function Shell() {
     };
   }, [toast]);
 
+  /* The daily recap: posted after midnight, and a tap on it lands on the day it describes. */
+  // A second tap on the same recap must not stack the same day twice behind the back button.
+  const stackRef = useRef(stack);
+  stackRef.current = stack;
+  const openDay = useCallback((date) => {
+    const current = stackRef.current[stackRef.current.length - 1];
+    if (current && current.screen === "day" && current.params.date === date) return;
+    nav.push("day", { date });
+  }, [nav]);
+  useDailyRecap(s, { openDay, toast });
+
+  /* The payment reminder: posted after midnight, and a tap on it opens the recurring list. */
+  const openScreen = useCallback((screen) => {
+    const current = stackRef.current[stackRef.current.length - 1];
+    if (current && current.screen === screen) return;
+    nav.push(screen);
+  }, [nav]);
+  useDueReminders(s, { openScreen, toast });
+
   const deleteTxn = useCallback(async (t) => {
     await s.remove("txns", t.id);
     buzz(14);
@@ -191,7 +213,8 @@ function Shell() {
     const p = top.params;
     if (MASTERS[top.screen]) return <Master cfg={MASTERS[top.screen]} s={s} nav={nav} />;
     switch (top.screen) {
-      case "add": return <Entry s={s} nav={nav} initialType={p.type} onDone={nav.pop} />;
+      case "add": return <Entry s={s} nav={nav} initialType={p.type} initialDate={p.date} onDone={nav.pop} />;
+      case "day": return <DayReview s={s} nav={nav} date={p.date} />;
       case "edit": return <Entry s={s} nav={nav} editId={p.id} onDone={nav.pop} />;
       case "txn": return <TxnDetail s={s} nav={nav} id={p.id} onDelete={deleteTxn} />;
       case "account": return <AccountDetail s={s} nav={nav} id={p.id} />;
@@ -303,6 +326,8 @@ function ThemeWrapper({ children }) {
   }, []);
   const theme = s.settings.theme;
   const dark = theme === "dark" || (theme === "system" && systemDark);
+  /* Light/dark and the look are independent: Liquid Glass has a light and a dark variant. */
+  const glass = s.settings.look === "glass";
 
   useEffect(() => {
     /*
@@ -310,15 +335,16 @@ function ThemeWrapper({ children }) {
      * to dark while the system is light, the strip under the tab bar and the
      * overscroll area kept the light page colour and read as a white band.
      * html, body and color-scheme all have to follow the in-app theme.
+     * Under glass they match the wallpaper's edge instead of the flat grey.
      */
-    const page = dark ? "#0E0E10" : "#EFEFF0";
-    const chrome = dark ? "#0E0E10" : "#F5F5F6";
+    const page = glass ? (dark ? "#07080C" : "#E8ECF4") : dark ? "#0E0E10" : "#EFEFF0";
+    const chrome = glass ? (dark ? "#0C0D14" : "#EEF1F8") : dark ? "#0E0E10" : "#F5F5F6";
     const meta = document.querySelector('meta[name="theme-color"]');
     if (meta) meta.setAttribute("content", chrome);
     document.documentElement.style.background = page;
     document.documentElement.style.colorScheme = dark ? "dark" : "light";
     if (document.body) document.body.style.background = page;
-  }, [dark]);
+  }, [dark, glass]);
 
-  return <div className={"vy" + (dark ? " dark" : "")} style={{ height: "100%" }}>{children}</div>;
+  return <div className={"vy" + (dark ? " dark" : "") + (glass ? " glass" : "")} style={{ height: "100%" }}>{children}</div>;
 }

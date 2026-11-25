@@ -1,4 +1,5 @@
 import React, { createContext, useContext, useCallback, useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { ChevronLeft, ChevronRight, ChevronDown, X, Check, Search, Pencil, Trash2, AlertCircle } from "lucide-react";
 import { buzz, clamp } from "../lib/money.js";
 import { Ic, ICON_NAMES, SWATCHES } from "../lib/icons.jsx";
@@ -32,11 +33,63 @@ export function ToastHost({ children }) {
   );
 }
 
+/* ── overlays ────────────────────────────────────────────────────────────── */
+/* A screen's entry animation leaves it a stacking context of its own, so a sheet rendered
+   inside it could never rise above the tab bar and the add button: they drew over the scrim,
+   unblurred, and covered the sheet's last button. Overlays are portalled to the stage, where
+   their z-index competes with the tab bar directly. */
+const toStage = (node) => {
+  const host = typeof document !== "undefined" && document.querySelector(".vy-stage");
+  return host ? createPortal(node, host) : node;
+};
+
 /* ── sheet ───────────────────────────────────────────────────────────────── */
-export function Sheet({ open, title, onClose, children, right }) {
+/* What the on-screen keyboard leaves visible. Android Chrome and iOS Safari both shrink only the
+   visual viewport when the keyboard opens, so a sheet pinned to bottom:0 sat behind it and its
+   last rows could not be reached. `kb` is how much of the layout viewport's bottom the keyboard
+   covers, and the sheet rides on it; `vh` is the visible height, which caps the sheet so that
+   when the browser has also panned the page up, the sheet's top is not pushed off the screen.
+   Without visualViewport (older engines, desktop) both stay null and the CSS defaults apply. */
+function useKeyboardInset(active) {
+  const [vp, setVp] = useState({ kb: 0, vh: null });
+  useEffect(() => {
+    const vv = typeof window !== "undefined" && window.visualViewport;
+    if (!active || !vv) return;
+    const read = () => {
+      const kb = Math.max(0, Math.round(window.innerHeight - vv.height - vv.offsetTop));
+      const vh = Math.round(vv.height);
+      setVp((p) => (p.kb === kb && p.vh === vh ? p : { kb, vh }));
+    };
+    read();
+    vv.addEventListener("resize", read);
+    vv.addEventListener("scroll", read);
+    return () => { vv.removeEventListener("resize", read); vv.removeEventListener("scroll", read); setVp({ kb: 0, vh: null }); };
+  }, [active]);
+  return vp;
+}
+
+/* Brings the focused field back into the sheet's own scroll area once the keyboard has
+   shrunk it. Scrolls only the sheet body: scrollIntoView would also scroll the clipped
+   ancestors (the stage, the app shell), and that shifting of the whole page is the bug. */
+function keepFocusVisible(body) {
+  const el = typeof document !== "undefined" && document.activeElement;
+  if (!body || !el || el === body || !body.contains(el)) return;
+  const b = body.getBoundingClientRect(), r = el.getBoundingClientRect();
+  const pad = 16;
+  if (r.bottom > b.bottom - pad) body.scrollTop += r.bottom - b.bottom + pad;
+  else if (r.top < b.top + pad) body.scrollTop -= b.top + pad - r.top;
+}
+
+/* `tall` holds the sheet at its full height whatever it contains. A search sheet shrank with
+   every keystroke, so the field it was typing into jumped down the screen and under the
+   keyboard; at full height the field stays put near the top and the browser never pans. */
+export function Sheet({ open, title, onClose, children, right, tall }) {
   const [closing, setClosing] = useState(false);
   const [dy, setDy] = useState(0);
   const start = useRef(0);
+  const { kb, vh } = useKeyboardInset(open);
+  const body = useRef(null);
+  useEffect(() => { if (kb) keepFocusVisible(body.current); }, [kb, vh]);
 
   const close = useCallback(() => {
     setClosing(true);
@@ -56,11 +109,11 @@ export function Sheet({ open, title, onClose, children, right }) {
   const move = (e) => { if (!start.current) return; const y = e.touches ? e.touches[0].clientY : e.clientY; setDy(Math.max(0, y - start.current)); };
   const up = () => { if (dy > 90) { buzz(6); close(); } else setDy(0); start.current = 0; };
 
-  return (
+  return toStage(
     <>
-      <div className="vy-scrim" onClick={close} />
-      <div className={"vy-sheet" + (closing ? " closing" : "")} role="dialog" aria-modal="true"
-        style={{ transform: dy ? `translateY(${dy}px)` : undefined, transition: dy ? "none" : undefined }}>
+      <div className={"vy-scrim" + (closing ? " closing" : "")} onClick={close} />
+      <div className={"vy-sheet" + (tall ? " tall" : "") + (closing ? " closing" : "")} role="dialog" aria-modal="true"
+        style={{ "--kb": kb + "px", "--vvh": vh ? vh + "px" : undefined, transform: dy ? `translateY(${dy}px)` : undefined, transition: dy ? "none" : undefined }}>
         <div onTouchStart={down} onTouchMove={move} onTouchEnd={up} style={{ flex: "0 0 auto" }}>
           <div className="vy-grab" />
           {title && (
@@ -70,21 +123,47 @@ export function Sheet({ open, title, onClose, children, right }) {
             </div>
           )}
         </div>
-        <div className="vy-sheet-b">{children}</div>
+        <div className="vy-sheet-b" ref={body} onFocus={(e) => kb && keepFocusVisible(e.currentTarget)}>{children}</div>
       </div>
     </>
   );
 }
 
 /* ── confirm ─────────────────────────────────────────────────────────────── */
+/* A centred dialog rather than a sheet: a yes/no question is not a panel of content, and a
+   destructive choice should hold the eye where the finger is not already resting. */
 export function Confirm({ open, title, body, confirmLabel = "Delete", danger = true, onConfirm, onClose }) {
-  return (
-    <Sheet open={open} onClose={onClose} title={title}>
-      <p className="vy-sub" style={{ marginTop: -4, lineHeight: 1.55 }}>{body}</p>
-      <button className={"vy-btn " + (danger ? "danger" : "accent")} style={{ marginTop: 14 }}
-        onClick={() => { buzz(16); onConfirm(); onClose(); }}>{confirmLabel}</button>
-      <button className="vy-btn soft" style={{ marginTop: 10 }} onClick={onClose}>Keep it</button>
-    </Sheet>
+  const [closing, setClosing] = useState(false);
+
+  const close = useCallback(() => {
+    setClosing(true);
+    setTimeout(() => { setClosing(false); onClose(); }, 170);
+  }, [onClose]);
+
+  useEffect(() => {
+    if (!open) return;
+    const onKey = (e) => e.key === "Escape" && close();
+    window.addEventListener("keydown", onKey);
+    const token = registerSheet(close);
+    return () => { window.removeEventListener("keydown", onKey); unregisterSheet(token); };
+  }, [open, close]);
+
+  if (!open) return null;
+  return toStage(
+    <>
+      <div className={"vy-scrim" + (closing ? " closing" : "")} onClick={close} />
+      <div className="vy-dialog-wrap">
+        <div className={"vy-dialog" + (closing ? " closing" : "")} role="alertdialog" aria-modal="true" aria-label={title}>
+          <b>{title}</b>
+          {body && <p className="vy-sub">{body}</p>}
+          <div className="vy-dialog-acts">
+            <button className="vy-btn soft" onClick={close}>Keep it</button>
+            <button className={"vy-btn " + (danger ? "danger" : "accent")}
+              onClick={() => { buzz(16); onConfirm(); close(); }}>{confirmLabel}</button>
+          </div>
+        </div>
+      </div>
+    </>
   );
 }
 
@@ -147,35 +226,79 @@ export const Empty = ({ icon, title, body, cta, onCta }) => (
   </div>
 );
 
-/* ── swipe to reveal edit / delete ───────────────────────────────────────── */
+/* ── swipe to edit / delete ──────────────────────────────────────────────── */
+/* Left to right edits, right to left deletes, with no second tap: the row commits on release
+   once it has travelled SWIPE_COMMIT of its width, and a haptic tick plus a grown icon mark
+   the moment it is armed, so dragging back before letting go cancels it.
+   A finger scrolling a list is never perfectly vertical, and the row once followed every pixel
+   of sideways drift. Nothing moves until the finger has travelled SWIPE_SLOP, the gesture is
+   then locked to one axis for the rest of the touch, and only a clearly horizontal one
+   (SWIPE_RATIO times wider than tall) counts. A vertical gesture belongs to the page. */
+const SWIPE_SLOP = 14;
+const SWIPE_RATIO = 1.6;
+const SWIPE_COMMIT = 0.35;
+const SWIPE_COMMIT_MIN = 90;
+
 export function SwipeRow({ children, onEdit, onDelete }) {
   const [x, setX] = useState(0);
-  const sx = useRef(null);
-  const W = (onEdit ? 72 : 0) + (onDelete ? 72 : 0);
-  if (!W) return children;
+  const [dragging, setDragging] = useState(false);
+  // Which action is showing behind the row. It outlives the drag so the panel stays painted
+  // while the row slides home, and is cleared when that transition ends.
+  const [side, setSide] = useState(null);
+  const [armed, setArmed] = useState(false);
+  const g = useRef(null);
+  const wrap = useRef(null);
+  const swiped = useRef(false);
+  if (!onEdit && !onDelete) return children;
 
-  const down = (e) => { sx.current = e.touches ? e.touches[0].clientX : e.clientX; };
+  const down = (e) => {
+    if (e.touches.length !== 1) { g.current = null; return; }
+    const t = e.touches[0];
+    const width = wrap.current ? wrap.current.offsetWidth : 320;
+    g.current = { x0: t.clientX, y0: t.clientY, last: 0, axis: null, armed: false,
+      limit: Math.max(SWIPE_COMMIT_MIN, width * SWIPE_COMMIT), width };
+    swiped.current = false;
+  };
   const move = (e) => {
-    if (sx.current == null) return;
-    const cx = e.touches ? e.touches[0].clientX : e.clientX;
-    setX(clamp(x === 0 ? cx - sx.current : -W + (cx - sx.current), -W, 0));
+    const s = g.current;
+    if (!s || s.axis === "y") return;
+    const t = e.touches[0];
+    const dx = t.clientX - s.x0, dy = t.clientY - s.y0;
+    if (!s.axis) {
+      if (Math.hypot(dx, dy) < SWIPE_SLOP) return;
+      if (Math.abs(dx) < Math.abs(dy) * SWIPE_RATIO) { s.axis = "y"; return; }
+      // Start the row from where the slop ended, so it does not jump by SWIPE_SLOP on lock.
+      s.axis = "x"; s.x0 += Math.sign(dx) * SWIPE_SLOP;
+      setDragging(true); swiped.current = true;
+    }
+    // A direction with no action does not move at all, rather than revealing an empty panel.
+    s.last = clamp(t.clientX - s.x0, onDelete ? -s.width : 0, onEdit ? s.width : 0);
+    const nowArmed = Math.abs(s.last) >= s.limit;
+    if (nowArmed !== s.armed) { s.armed = nowArmed; setArmed(nowArmed); if (nowArmed) buzz(8); }
+    setSide(s.last > 0 ? "edit" : s.last < 0 ? "del" : null);
+    setX(s.last);
   };
   const up = () => {
-    if (sx.current == null) return;
-    const snap = x < -W / 2 ? -W : 0;
-    if (snap !== x) buzz(6);
-    setX(snap); sx.current = null;
+    const s = g.current;
+    g.current = null;
+    if (!s || s.axis !== "x") return;
+    setDragging(false); setArmed(false); setX(0);
+    if (!s.armed) return;
+    if (s.last > 0) onEdit();
+    else { buzz(14); onDelete(); }
   };
 
   return (
-    <div className="vy-rowwrap">
-      <div className="vy-rowacts">
-        {onEdit && <button className="a-edit" onClick={() => { setX(0); onEdit(); }}><Pencil size={17} />Edit</button>}
-        {onDelete && <button className="a-del" onClick={() => { setX(0); buzz(14); onDelete(); }}><Trash2 size={17} />Delete</button>}
-      </div>
-      <div style={{ transform: `translateX(${x}px)`, transition: sx.current == null ? "transform .26s cubic-bezier(.32,.72,0,1)" : "none" }}
-        onTouchStart={down} onTouchMove={move} onTouchEnd={up}
-        onClickCapture={(e) => { if (x !== 0) { e.stopPropagation(); setX(0); } }}>
+    <div className="vy-rowwrap" ref={wrap}>
+      {side && (
+        <div className={"vy-rowacts " + (side === "edit" ? "a-edit" : "a-del") + (armed ? " armed" : "")} aria-hidden="true">
+          {side === "edit" ? <><Pencil size={18} /><span>Edit</span></> : <><span>Delete</span><Trash2 size={18} /></>}
+        </div>
+      )}
+      <div className="vy-rowslide" style={{ transform: `translateX(${x}px)`, transition: dragging ? "none" : "transform .26s cubic-bezier(.32,.72,0,1)" }}
+        onTouchStart={down} onTouchMove={move} onTouchEnd={up} onTouchCancel={up}
+        onTransitionEnd={(e) => { if (e.target === e.currentTarget && x === 0) setSide(null); }}
+        onClickCapture={(e) => { if (swiped.current) { e.stopPropagation(); swiped.current = false; } }}>
         {children}
       </div>
     </div>
@@ -189,7 +312,7 @@ export function PickerSheet({ open, onClose, title, items, value, onPick, search
   const list = items.filter((i) => i.name.toLowerCase().includes(q.toLowerCase()));
 
   return (
-    <Sheet open={open} onClose={onClose} title={title}>
+    <Sheet open={open} onClose={onClose} title={title} tall={searchable && items.length > 0}>
       {searchable && (
         <div className="vy-searchbar" style={{ marginBottom: 12 }}>
           <Search size={17} style={{ color: "var(--muted)" }} />
@@ -318,7 +441,7 @@ export function Select({ value, options, onChange, placeholder = "Not set", titl
         <ChevronDown size={18} style={{ color: "var(--muted)", flex: "0 0 auto" }} />
       </button>
 
-      <Sheet open={open} onClose={() => setOpen(false)} title={title || placeholder}>
+      <Sheet open={open} onClose={() => setOpen(false)} title={title || placeholder} tall={searchable && options.length > 8}>
         {searchable && options.length > 8 && (
           <div className="vy-searchbar" style={{ marginBottom: 12 }}>
             <Search size={17} style={{ color: "var(--muted)" }} />

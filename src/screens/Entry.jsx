@@ -24,7 +24,7 @@ const yesterday = () => {
  * (account, payment method, date) are chips you tap once rather than pickers
  * that open a sheet.
  */
-export default function Entry({ s, nav, editId, initialType, onDone }) {
+export default function Entry({ s, nav, editId, initialType, initialDate, onDone }) {
   const toast = useToast();
   const existing = editId ? s.state.txns.find((t) => t.id === editId) : null;
   const amtRef = useRef(null);
@@ -52,7 +52,8 @@ export default function Entry({ s, nav, editId, initialType, onDone }) {
     const startType = initialType === "Income" || initialType === "Transfer" ? initialType : "Expense";
     const d = defaultFor(startType);
     return {
-      id: null, type: startType, date: isoToday(), amount: 0,
+      // Opened from a day's recap, an entry belongs to that day, not to whenever it was typed.
+      id: null, type: startType, date: initialDate && initialDate <= isoToday() ? initialDate : isoToday(), amount: 0,
       ...(startType === "Transfer" ? { cat: null } : null),
       account: d.account, to: null, cat: startType === "Transfer" ? null : d.cat, ret: null, method: d.method,
       notes: "", status: "Cleared", exclude: false, splits: null, shares: null, tags: [],

@@ -9,7 +9,13 @@ const StoreCtx = createContext(null);
 export const useStore = () => useContext(StoreCtx);
 
 const EMPTY = Object.fromEntries(db.COLLECTIONS.map((c) => [c, []]));
-const DEFAULT_SETTINGS = { theme: "system", privacy: false, lock: false, pin: "", notif: false, onlyMyShare: false, defaults: {} };
+/*
+ * `notif` is an early placeholder that nothing reads; it stays so an older backup restores
+ * unchanged. The daily recap is `dailyDigest`, on by default — a new key rather than a
+ * flipped default, because installs that ever saved a setting already store notif: false.
+ * `dueReminders` is the payment reminder for recurring items, also on by default.
+ */
+const DEFAULT_SETTINGS = { theme: "system", look: "default", privacy: false, lock: false, pin: "", notif: false, dailyDigest: true, dueReminders: true, onlyMyShare: false, defaults: {} };
 
 export function StoreProvider({ children }) {
   const [state, setState] = useState({ ...EMPTY, meta: {} });

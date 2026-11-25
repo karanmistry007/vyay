@@ -123,5 +123,99 @@ T2("months with activity are known", [...monthsWithActivity(txns, "2026")].sort(
 
 function T2(l, c, e) { T(l, c, e); }
 
+/* ── the daily recap: one day's figures, and the words the notification uses ── */
+import { daySummary } from "./src/lib/analytics.js";
+import { digestMessage, dayBefore } from "./src/lib/digest.js";
+console.log("\n— daily recap —");
+const dayTxns = [
+  tx("d1", "2026-11-24", 820, "food"),
+  tx("d2", "2026-11-24", 420, "fuel"),
+  { ...tx("d3", "2026-11-24", 50000, null), type: "Income", cat: "sal" },
+  { ...tx("d4", "2026-11-24", 2000, null), type: "Transfer", to: "a2" },
+  { ...tx("d5", "2026-11-24", 300, "food"), exclude: true },           // a settlement: counted, never spent
+  tx("d6", "2026-11-23", 999, "food"),                                 // the day before stays out
+];
+const day = daySummary(buildLedger(dayTxns), dayTxns, "2026-11-24", { catById: cat });
+T2("a day counts every entry made on it", day.entries === 5, String(day.entries));
+T2("spend leaves out hidden rows", day.spent === 1240, String(day.spent));
+T2("income is the day's income", day.earned === 50000, String(day.earned));
+T2("transfers are reported as moved, not spent", day.moved === 2000, String(day.moved));
+T2("the biggest category is named", day.top && day.top.name === "Food" && day.top.amount === 820, JSON.stringify(day.top));
+const quiet = daySummary(buildLedger(dayTxns), dayTxns, "2026-11-22", { catById: cat });
+T2("an empty day is all zeros", quiet.entries === 0 && quiet.spent === 0 && quiet.top === null, JSON.stringify(quiet));
+const halves = [tx("h1", "2026-11-24", 116.67, "food"), tx("h2", "2026-11-24", 116.67, "food"), tx("h3", "2026-11-24", 116.66, "food")];
+T2("a day's total is kept to the paisa", daySummary(buildLedger(halves), halves, "2026-11-24", { catById: cat }).spent === 350);
+
+/* The ledger's special rows, so a rewrite of daySummary cannot drift from the reports. */
+const sharedDay = [
+  tx("p1", "2026-11-24", 900, "fuel", { payer: "pradip", account: null,
+    shares: [{ person: "babu", amount: 300 }, { person: "pradip", amount: 300 }] }),        // my share is 300
+  tx("p2", "2026-11-24", 350, "food", { shares: [{ person: "pradip", amount: 116.67 }, { person: "babu", amount: 116.67 }] }),
+  tx("p3", "2026-11-24", 1000, null, { splits: [{ cat: "food", amount: 400 }, { cat: "fuel", amount: 600 }] }),
+  { ...tx("p4", "2026-11-24", 233.34, "settle"), type: "Income", exclude: true,
+    settles: { person: "pradip", direction: "in", links: [] } },
+];
+const sharedFull = daySummary(buildLedger(sharedDay), sharedDay, "2026-11-24", { catById: cat });
+T2("a bill someone else paid counts only my share", sharedFull.spent === 1650, String(sharedFull.spent));
+T2("a real settlement is an entry but not income", sharedFull.earned === 0 && sharedFull.entries === 4, JSON.stringify(sharedFull));
+T2("split legs land in their own categories", sharedFull.top.name === "Fuel" && sharedFull.top.amount === 900, JSON.stringify(sharedFull.top));
+const sharedMine = daySummary(buildLedger(sharedDay, { onlyMyShare: true }), sharedDay, "2026-11-24", { catById: cat });
+T2("only-my-share counts my part of a bill I paid", sharedMine.spent === 1416.66, String(sharedMine.spent));
+
+T2("the day before crosses a month", dayBefore("2026-12-01") === "2026-11-30", dayBefore("2026-12-01"));
+T2("and a year", dayBefore("2027-01-01") === "2026-12-31", dayBefore("2027-01-01"));
+
+const msg = digestMessage(day, { currency: "INR" });
+T2("a busy day leads with what was spent", msg.title === "Tuesday: ₹1,240.00 spent", msg.title);
+T2("and lists what else happened", msg.body.includes("5 entries") && msg.body.includes("₹50,000.00 in")
+  && msg.body.includes("₹2,000.00 moved") && msg.body.includes("Food"), msg.body);
+const hidden = digestMessage(day, { currency: "INR", privacy: true });
+T2("hide amounts keeps figures off the lock screen", !/[₹\d,]+\.\d\d/.test(hidden.title + hidden.body), hidden.title + " | " + hidden.body);
+const nudge = digestMessage(quiet, { currency: "INR" });
+T2("an empty day asks for the missing entries", nudge.kind === "nudge" && nudge.title === "Nothing logged for Sunday", nudge.title);
+T2("and names the date it means", nudge.body.includes("22 Nov"), nudge.body);
+const elsewhere = digestMessage(quiet, { currency: "INR", elsewhere: 3, bookName: "Personal" });
+T2("an empty book with activity elsewhere does not scold", elsewhere.kind === "elsewhere" && elsewhere.body.includes("3 entries"), elsewhere.body);
+const paydayOnly = digestMessage(daySummary(buildLedger([dayTxns[2]]), [dayTxns[2]], "2026-11-24", {}), { currency: "INR" });
+T2("an income-only day leads with the income", paydayOnly.title === "Tuesday: ₹50,000.00 came in", paydayOnly.title);
+const moveOnly = digestMessage(daySummary(buildLedger([dayTxns[3]]), [dayTxns[3]], "2026-11-24", {}), { currency: "INR" });
+T2("a transfer-only day says nothing was spent", moveOnly.title === "Tuesday: ₹2,000.00 moved between accounts", moveOnly.title);
+const one = digestMessage(daySummary(buildLedger([dayTxns[0]]), [dayTxns[0]], "2026-11-24", { catById: cat }), { currency: "INR" });
+T2("one entry is singular", one.body.startsWith("1 entry"), one.body);
+
+/* ── payment reminders: which recurring items fall on a day, and the words for them ── */
+import { recurringDue } from "./src/lib/analytics.js";
+import { dueMessage } from "./src/lib/digest.js";
+console.log("\n— payment reminders —");
+const rec = [
+  { id: "r1", name: "Rent", amount: 15000, day: 5 },
+  { id: "r2", name: "Netflix", amount: 499, day: 6, auto: true },
+  { id: "r3", name: "Gym", amount: 1200, day: 31 },
+  { id: "r4", name: "SIP", amount: 5000, day: "5" },               // a day stored as text still matches
+];
+T2("items due on their day of the month", recurringDue(rec, "2026-12-05").map((r) => r.id).join(",") === "r1,r4",
+  recurringDue(rec, "2026-12-05").map((r) => r.id).join(","));
+T2("nothing due on an empty day", recurringDue(rec, "2026-12-07").length === 0);
+T2("day 31 falls on the last day of a short month", recurringDue(rec, "2026-11-30").map((r) => r.id).join(",") === "r3",
+  recurringDue(rec, "2026-11-30").map((r) => r.id).join(","));
+T2("and of February", recurringDue(rec, "2027-02-28").map((r) => r.id).join(",") === "r3");
+T2("and only once in a long month", recurringDue(rec, "2026-12-30").length === 0 && recurringDue(rec, "2026-12-31").length === 1);
+T2("a missing list is no reminders", recurringDue(undefined, "2026-12-05").length === 0);
+
+const asItem = (r) => ({ name: r.name, amount: r.amount, auto: !!r.auto, currency: "INR" });
+const soloToday = dueMessage({ today: [asItem(rec[0])], tomorrow: [] });
+T2("one payment today is named in the title", soloToday.title === "Rent is due today", soloToday.title);
+T2("with its amount in the body", soloToday.body.includes("₹15,000.00"), soloToday.body);
+const both = dueMessage({ today: [asItem(rec[0]), asItem(rec[3])], tomorrow: [asItem(rec[1])] });
+T2("several today are counted with their total", both.title === "2 payments due today · ₹20,000.00", both.title);
+T2("tomorrow's are listed after today's", both.body.indexOf("Today:") < both.body.indexOf("Tomorrow:")
+  && both.body.includes("Netflix ₹499.00 (auto-pays)"), both.body);
+const soloTomorrow = dueMessage({ today: [], tomorrow: [asItem(rec[1])] });
+T2("only tomorrow leads with tomorrow", soloTomorrow.title === "Netflix is due tomorrow", soloTomorrow.title);
+T2("nothing due is no message", dueMessage({ today: [], tomorrow: [] }) === null);
+const hiddenDue = dueMessage({ today: [asItem(rec[0]), asItem(rec[3])], tomorrow: [asItem(rec[1])] }, { privacy: true });
+T2("hide amounts keeps payment figures off the lock screen", !/[₹\d,]+\.\d\d/.test(hiddenDue.title + hiddenDue.body),
+  hiddenDue.title + " | " + hiddenDue.body);
+
 console.log(`\n  ${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);
