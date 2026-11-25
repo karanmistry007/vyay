@@ -15,12 +15,13 @@ IndexedDB. Read `README.md` for the product behaviour; this file is how to work 
 | Money formatting | `node test-format.mjs` | `fmt`, `round2`, `tint` |
 | Report maths | `node test-analytics.mjs` | pure functions in `src/lib/analytics.js` |
 | Settlement repair | `node test-planner.mjs` | `planRepair` correctness and idempotency |
-| The whole safety net | `npm run verify` | the four scripts above, judged against the known baseline |
+| Quick add parsing | `node test-quickparse.mjs` | `parseQuick`: a spoken or typed sentence into a draft |
+| The whole safety net | `npm run verify` | the five scripts above, judged against the known baseline |
 | …and the build with it | `npm run verify:build` | adds `npm run build` and checks the worker was rewritten |
 | Invariants | `npm run check:invariants` | the rules below that a machine can check; needs no `npm install` |
 | Bundle budget | `npm run check:size` | gzipped code payload against its ceiling; needs a build first |
 
-There is no test runner, no linter and no typechecker. The four scripts above are the whole
+There is no test runner, no linter and no typechecker. The five scripts above are the whole
 safety net, so they are not optional either. Each exits non-zero on failure.
 
 **Before reporting any code change as done, run `npm run verify`.** Quote the pass/fail counts.
@@ -55,7 +56,8 @@ is yours. The allowance lives in `scripts/baseline.mjs`, which the hook and CI b
 
 ## Baseline (verified 2026-11-24)
 
-- `check-imports`, `test-format` (20 passed), `test-planner` (27 passed) pass clean.
+- `check-imports`, `test-format` (20 passed), `test-planner` (27 passed),
+  `test-quickparse` (95 passed) pass clean.
 - `test-analytics` is **86 passed, 1 failed**. The failure is `a short history charts month by
   month`: `buildRange("all", ...)` ends the range at the real `today`, not at the anchor the test
   passes, so the expected bucket count drifts by one every month. That is a defect in the test's
@@ -97,6 +99,9 @@ Each of these exists because breaking it caused a real bug. Do not relax one sil
    carries a Content-Security-Policy (the `vyay-csp` plugin in `vite.config.js`) that makes the
    browser enforce this; its `script-src 'self'` is also what keeps Netlify's injected
    "Powered by Netlify" badge from drawing. Never add `'unsafe-inline'` or a remote origin to it.
+   Speech recognition is the one API the CSP cannot see: the browser itself may stream the
+   microphone to a server. Only `src/lib/voice.js` may touch it, and only with
+   `processLocally = true`, so it fails instead of falling back; `check:invariants` enforces both.
 2. **Record CRUD goes through `store.jsx`.** Importing `db.js` elsewhere is allowed only for the
    storage *capability* helpers (`estimateUsage`, `persistStorage`, `storageKind`, `COLLECTIONS`),
    as `exporter.js`, `DataManager.jsx` and `Onboarding.jsx` do. Never to read or write records.
@@ -195,7 +200,7 @@ than a second, divergent definition of passing. Five jobs:
 
 | Job | What it decides |
 |---|---|
-| `safety-net` | the four scripts, on Node 20, 22 and 24 |
+| `safety-net` | the five scripts, on Node 20, 22 and 24 |
 | `invariants` | `scripts/check-invariants.mjs`; install-free, so a broken lockfile still gets feedback |
 | `build` | builds, proves the worker was rewritten, re-runs the invariants against `dist/`, checks the bundle budget, uploads the build |
 | `dependencies` | `npm audit --omit=dev` blocks; the dev-tool advisories only report |
