@@ -44,10 +44,52 @@ const toStage = (node) => {
 };
 
 /* ── sheet ───────────────────────────────────────────────────────────────── */
-export function Sheet({ open, title, onClose, children, right }) {
+/* What the on-screen keyboard leaves visible. Android Chrome and iOS Safari both shrink only the
+   visual viewport when the keyboard opens, so a sheet pinned to bottom:0 sat behind it and its
+   last rows could not be reached. `kb` is how much of the layout viewport's bottom the keyboard
+   covers, and the sheet rides on it; `vh` is the visible height, which caps the sheet so that
+   when the browser has also panned the page up, the sheet's top is not pushed off the screen.
+   Without visualViewport (older engines, desktop) both stay null and the CSS defaults apply. */
+function useKeyboardInset(active) {
+  const [vp, setVp] = useState({ kb: 0, vh: null });
+  useEffect(() => {
+    const vv = typeof window !== "undefined" && window.visualViewport;
+    if (!active || !vv) return;
+    const read = () => {
+      const kb = Math.max(0, Math.round(window.innerHeight - vv.height - vv.offsetTop));
+      const vh = Math.round(vv.height);
+      setVp((p) => (p.kb === kb && p.vh === vh ? p : { kb, vh }));
+    };
+    read();
+    vv.addEventListener("resize", read);
+    vv.addEventListener("scroll", read);
+    return () => { vv.removeEventListener("resize", read); vv.removeEventListener("scroll", read); setVp({ kb: 0, vh: null }); };
+  }, [active]);
+  return vp;
+}
+
+/* Brings the focused field back into the sheet's own scroll area once the keyboard has
+   shrunk it. Scrolls only the sheet body: scrollIntoView would also scroll the clipped
+   ancestors (the stage, the app shell), and that shifting of the whole page is the bug. */
+function keepFocusVisible(body) {
+  const el = typeof document !== "undefined" && document.activeElement;
+  if (!body || !el || el === body || !body.contains(el)) return;
+  const b = body.getBoundingClientRect(), r = el.getBoundingClientRect();
+  const pad = 16;
+  if (r.bottom > b.bottom - pad) body.scrollTop += r.bottom - b.bottom + pad;
+  else if (r.top < b.top + pad) body.scrollTop -= b.top + pad - r.top;
+}
+
+/* `tall` holds the sheet at its full height whatever it contains. A search sheet shrank with
+   every keystroke, so the field it was typing into jumped down the screen and under the
+   keyboard; at full height the field stays put near the top and the browser never pans. */
+export function Sheet({ open, title, onClose, children, right, tall }) {
   const [closing, setClosing] = useState(false);
   const [dy, setDy] = useState(0);
   const start = useRef(0);
+  const { kb, vh } = useKeyboardInset(open);
+  const body = useRef(null);
+  useEffect(() => { if (kb) keepFocusVisible(body.current); }, [kb, vh]);
 
   const close = useCallback(() => {
     setClosing(true);
@@ -70,8 +112,8 @@ export function Sheet({ open, title, onClose, children, right }) {
   return toStage(
     <>
       <div className={"vy-scrim" + (closing ? " closing" : "")} onClick={close} />
-      <div className={"vy-sheet" + (closing ? " closing" : "")} role="dialog" aria-modal="true"
-        style={{ transform: dy ? `translateY(${dy}px)` : undefined, transition: dy ? "none" : undefined }}>
+      <div className={"vy-sheet" + (tall ? " tall" : "") + (closing ? " closing" : "")} role="dialog" aria-modal="true"
+        style={{ "--kb": kb + "px", "--vvh": vh ? vh + "px" : undefined, transform: dy ? `translateY(${dy}px)` : undefined, transition: dy ? "none" : undefined }}>
         <div onTouchStart={down} onTouchMove={move} onTouchEnd={up} style={{ flex: "0 0 auto" }}>
           <div className="vy-grab" />
           {title && (
@@ -81,7 +123,7 @@ export function Sheet({ open, title, onClose, children, right }) {
             </div>
           )}
         </div>
-        <div className="vy-sheet-b">{children}</div>
+        <div className="vy-sheet-b" ref={body} onFocus={(e) => kb && keepFocusVisible(e.currentTarget)}>{children}</div>
       </div>
     </>
   );
@@ -270,7 +312,7 @@ export function PickerSheet({ open, onClose, title, items, value, onPick, search
   const list = items.filter((i) => i.name.toLowerCase().includes(q.toLowerCase()));
 
   return (
-    <Sheet open={open} onClose={onClose} title={title}>
+    <Sheet open={open} onClose={onClose} title={title} tall={searchable && items.length > 0}>
       {searchable && (
         <div className="vy-searchbar" style={{ marginBottom: 12 }}>
           <Search size={17} style={{ color: "var(--muted)" }} />
@@ -399,7 +441,7 @@ export function Select({ value, options, onChange, placeholder = "Not set", titl
         <ChevronDown size={18} style={{ color: "var(--muted)", flex: "0 0 auto" }} />
       </button>
 
-      <Sheet open={open} onClose={() => setOpen(false)} title={title || placeholder}>
+      <Sheet open={open} onClose={() => setOpen(false)} title={title || placeholder} tall={searchable && options.length > 8}>
         {searchable && options.length > 8 && (
           <div className="vy-searchbar" style={{ marginBottom: 12 }}>
             <Search size={17} style={{ color: "var(--muted)" }} />
