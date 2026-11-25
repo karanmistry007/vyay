@@ -2,12 +2,12 @@ import React, { useEffect, useState } from "react";
 import {
   Wallet, Layers, Building2, CreditCard, Users, BookOpen, Target, PiggyBank, Repeat,
   Wand2, Database, ChevronDown, ChevronRight, Moon, Sun, EyeOff, Lock, Shield, Tag as TagIcon, Scale, Settings2,
-  RefreshCw, Check, ArrowUpCircle, Bell, CalendarClock,
+  RefreshCw, Check, ArrowUpCircle, Bell, CalendarClock, Palette,
 } from "lucide-react";
 import { permissionState, askPermission } from "../lib/notify.js";
 import { dayBefore } from "../lib/digest.js";
 import { LayoutGrid } from "lucide-react";
-import { Nav, Switch, useToast } from "../components/ui.jsx";
+import { Nav, Switch, Seg, useToast } from "../components/ui.jsx";
 import { checkForUpdate } from "../lib/pwa.js";
 import { APP_VERSION, APP_BUILD } from "../lib/version.js";
 import { Ic } from "../lib/icons.jsx";
@@ -195,6 +195,18 @@ export default function More({ s, nav }) {
               <div className="vy-row-m"><b>Dark mode</b><span>{s.settings.theme === "system" ? "Following your phone" : s.settings.theme === "dark" ? "On" : "Off"}</span></div>
               <Switch on={s.settings.theme === "dark"} label="Dark mode"
                 onChange={(v) => s.setSetting("theme", v ? "dark" : "light")} />
+            </div>
+            <div className="vy-row vy-row-stack" style={{ cursor: "default" }}>
+              <div className="vy-row-top">
+                <div className="vy-row-ic" style={{ background: tint("var(--accent)"), color: "var(--accent)" }}><Palette size={18} /></div>
+                <div className="vy-row-m">
+                  <b>Theme</b>
+                  <span>{s.settings.look === "glass" ? "Translucent layers over a soft wallpaper" : "Solid cards on a quiet grey field"}</span>
+                </div>
+              </div>
+              <Seg value={s.settings.look === "glass" ? "glass" : "default"}
+                options={[{ v: "default", l: "Default" }, { v: "glass", l: "Liquid Glass" }]}
+                onChange={(v) => s.setSetting("look", v)} />
             </div>
             <div className="vy-row" style={{ cursor: "default" }}>
               <div className="vy-row-ic" style={{ background: tint("var(--muted)"), color: "var(--muted)" }}><EyeOff size={18} /></div>

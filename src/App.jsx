@@ -326,6 +326,8 @@ function ThemeWrapper({ children }) {
   }, []);
   const theme = s.settings.theme;
   const dark = theme === "dark" || (theme === "system" && systemDark);
+  /* Light/dark and the look are independent: Liquid Glass has a light and a dark variant. */
+  const glass = s.settings.look === "glass";
 
   useEffect(() => {
     /*
@@ -333,15 +335,16 @@ function ThemeWrapper({ children }) {
      * to dark while the system is light, the strip under the tab bar and the
      * overscroll area kept the light page colour and read as a white band.
      * html, body and color-scheme all have to follow the in-app theme.
+     * Under glass they match the wallpaper's edge instead of the flat grey.
      */
-    const page = dark ? "#0E0E10" : "#EFEFF0";
-    const chrome = dark ? "#0E0E10" : "#F5F5F6";
+    const page = glass ? (dark ? "#07080C" : "#E8ECF4") : dark ? "#0E0E10" : "#EFEFF0";
+    const chrome = glass ? (dark ? "#0C0D14" : "#EEF1F8") : dark ? "#0E0E10" : "#F5F5F6";
     const meta = document.querySelector('meta[name="theme-color"]');
     if (meta) meta.setAttribute("content", chrome);
     document.documentElement.style.background = page;
     document.documentElement.style.colorScheme = dark ? "dark" : "light";
     if (document.body) document.body.style.background = page;
-  }, [dark]);
+  }, [dark, glass]);
 
-  return <div className={"vy" + (dark ? " dark" : "")} style={{ height: "100%" }}>{children}</div>;
+  return <div className={"vy" + (dark ? " dark" : "") + (glass ? " glass" : "")} style={{ height: "100%" }}>{children}</div>;
 }
