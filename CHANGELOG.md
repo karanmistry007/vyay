@@ -12,6 +12,13 @@ with the live app, https://vyay.karanmistry.in, which the release workflow adds 
 
 ## [Unreleased]
 
+### Fixed
+
+- Quick add no longer sits silently with no voice button on phones. Where voice is off, it now
+  says why: Chrome on Android cannot yet turn speech into text on the phone itself, only by
+  sending it to a server, and Vyay never does that. A browser that does not answer the question
+  no longer leaves the sheet waiting, and "Check again" asks once more.
+
 ## [1.0.0] — 2026-11-25
 
 The first production release. Earlier builds (0.x) were previews; installs and backups from
