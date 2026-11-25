@@ -1,7 +1,7 @@
 import React, { useMemo, useState } from "react";
 import { Search, SlidersHorizontal, X, Layers } from "lucide-react";
 import TxnRow from "../components/TxnRow.jsx";
-import { Nav, Seg, Sheet, Empty, SwipeRow, useToast } from "../components/ui.jsx";
+import { Nav, Seg, Sheet, Confirm, Empty, SwipeRow, useToast } from "../components/ui.jsx";
 import { fmt, buzz, sum, relDay, iso } from "../lib/money.js";
 
 const BLANK = { type: "All", cats: [], accs: [], methods: [], tags: [], range: "3m", min: "", max: "" };
@@ -11,6 +11,8 @@ export default function Txns({ s, nav, onDelete }) {
   const [q, setQ] = useState("");
   const [f, setF] = useState(BLANK);
   const [showFilter, setShowFilter] = useState(false);
+  // A swipe deletes with no tap after it, so a stray one must be caught here, not by Undo alone.
+  const [confirming, setConfirming] = useState(null);
   const priv = s.settings.privacy;
 
   const cutoff = useMemo(() => {
@@ -111,7 +113,7 @@ export default function Txns({ s, nav, onDelete }) {
                     </div>
                     <div className="vy-group">
                       {items.map((t) => (
-                        <SwipeRow key={t.id} onEdit={() => nav.push("edit", { id: t.id })} onDelete={() => onDelete(t)}>
+                        <SwipeRow key={t.id} onEdit={() => nav.push("edit", { id: t.id })} onDelete={() => setConfirming(t)}>
                           <TxnRow t={t} s={s} onClick={() => nav.push("txn", { id: t.id })} />
                         </SwipeRow>
                       ))}
@@ -160,6 +162,12 @@ export default function Txns({ s, nav, onDelete }) {
           Show {list.length} transaction{list.length === 1 ? "" : "s"}
         </button>
       </Sheet>
+
+      <Confirm open={!!confirming} onClose={() => setConfirming(null)} onConfirm={() => onDelete(confirming)}
+        title="Delete this transaction?"
+        body={confirming ? `${(s.retById[confirming.ret] || s.catById[confirming.cat] || {}).name || confirming.type}, `
+          + `${fmt(confirming.amount, { currency: s.currency })} (${relDay(confirming.date)}), will be removed. `
+          + "You can undo it straight after." : ""} />
     </div>
   );
 }
